@@ -13,9 +13,11 @@ let digit = ['0'-'9']
 let integer = digit+
 let alpha = ['A'-'Z' 'a'-'z']
 let ident = (alpha | '_') (alpha | digit | '_')*
+let comment = ';' [^ '\n']*
 
 rule token = parse
   | white                               { token lexbuf }
+  | comment                             { token lexbuf }
   | newline                             { new_line lexbuf; token lexbuf }
   | integer                             { INT (int_of_string (Lexing.lexeme lexbuf)) }
   | "true"                              { TRUE }
@@ -25,8 +27,6 @@ rule token = parse
   | "else"                              { ELSE }
   | "letrec"                            { LETREC }
   | "in"                                { IN }
-  | "reduce"                            { REDUCE }
-  | "filter"                            { FILTER }
   | "w"                                 { OMEGA }
   | "islim"                             { ISLIM }
   | "\\"                                { LAMBDA }
@@ -47,7 +47,6 @@ rule token = parse
   | "("                                 { LPAREN }
   | ")"                                 { RPAREN }
   | "{"                                 { LBRACE }
-  | "}"                                 { RBRACE }
   | ":"                                 { COLON }
   | ","                                 { COMMA }
   | ident as i                          { ID i }

@@ -6,12 +6,11 @@ open Ast;;
 
 %token <int> INT
 %token <string> ID
-%token TRUE FALSE IF THEN ELSE LETREC IN REDUCE FILTER OMEGA ISLIM LAMBDA
+%token TRUE FALSE IF THEN ELSE LETREC IN OMEGA ISLIM LAMBDA IMAP
 %token BAR DOT COLON COMMA PLUS MINUS MULT DIV EQ NE LT LE GT GE
-%token LSQUARE RSQUARE LPAREN RPAREN LBRACE RBRACE EOF
+%token LSQUARE RSQUARE LPAREN RPAREN LBRACE EOF
 
 %nonassoc IF
-%nonassoc THEN
 %nonassoc ELSE
 %nonassoc IN
 %nonassoc ISLIM
@@ -22,10 +21,10 @@ open Ast;;
 %nonassoc FALSE
 %nonassoc BAR
 %nonassoc INT
-%nonassoc REDUCE
-%nonassoc FILTER
 %nonassoc IMAP
 %nonassoc COLON
+%nonassoc ID
+%nonassoc OMEGA
 
 %left COMMA
 
@@ -33,7 +32,7 @@ open Ast;;
 %left PLUS MINUS
 %left MULT DIV
 
-%nonassoc LPAREN RPAREN LSQUARE RSQUARE LBRACE RBRACE
+%nonassoc LPAREN LSQUARE
 
 %left fun_Apply
 
@@ -44,12 +43,17 @@ open Ast;;
 
 
 prog: expr EOF { $1 }
+      ;
 
 
 expr:
     const
       {
          $1
+      }
+    | ID
+      {
+          EVar ($1)
       }
     | ISLIM expr
       {
@@ -63,13 +67,9 @@ expr:
       {
           ELambda ($2, $4)
       }
-    | expr PLUS expr
+    | expr binary_op expr
       {
-          EBinOp (OpPlus, $1, $3)
-      }
-    | expr MULT expr
-      {
-          EBinOp (OpMult, $1, $3)
+          EBinOp ($2, $1, $3)
       }
     | IF expr THEN expr ELSE expr
       {
@@ -78,16 +78,6 @@ expr:
     | LETREC ID EQ expr IN expr
       {
           ELetRec ($2, $4, $6)
-      }
-    | REDUCE expr
-      {
-          (* TODO Check that Expr is 3-argument application! *)
-          EReduce (ETrue, ETrue, ETrue)
-      }
-    | FILTER expr
-      {
-          (* TODO Check that Expr is 2-arg application application! *)
-          EFilter (ETrue, ETrue)
       }
     | IMAP expr BAR expr LBRACE gen_exprs
       {
@@ -101,6 +91,21 @@ expr:
       {
           $2
       }
+    ;
+
+
+%inline binary_op:
+    | PLUS                   { OpPlus }
+    | MINUS                  { OpMinus }
+    | MULT                   { OpMult }
+    | DIV                    { OpDiv }
+    | LT                     { OpLt }
+    | GT                     { OpGt }
+    | EQ                     { OpEq }
+    | NE                     { OpNe }
+    | GE                     { OpGe }
+    | LE                     { OpLe }
+    ;
 
 gen_exprs:
     gen COLON expr
@@ -111,22 +116,27 @@ gen_exprs:
       {
           ($1, $3) :: $5
       }
+    ;
 
 gen:
     expr LE ID LT expr
     {
         ($1, $3, $5)
     }
+    ;
 
 expr_list:
     expr { $1 :: [] }
     | expr COMMA expr_list { $1 :: $3 }
+    ;
 
 const:
     INT { ENum ((0, $1) :: []) }
+    | OMEGA { ENum ((1, 0) :: []) }
     | LSQUARE expr_list RSQUARE
       {
           EArray ($2)
       }
     | TRUE { ETrue }
     | FALSE { EFalse }
+    ;

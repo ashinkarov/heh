@@ -1,4 +1,4 @@
-OCB := ocamlbuild -j 8 -use-ocamlfind #-use-menhir
+OCB := ocamlbuild -j 8 -use-ocamlfind -use-menhir
 
 SRC := ast.ml \
        main.ml \
