@@ -76,8 +76,8 @@ let rec expr_to_str e =
             "false"
     | ENum (e1) ->
             "Number XXX"
-    | EArray (e1) -> 
-            array_to_str e1
+    | EArray (e1) ->
+            sprintf "[%s]" (array_to_str e1)
     | EVar (x) ->
             sprintf "%s" x
     | EFilter (e1, e2) ->

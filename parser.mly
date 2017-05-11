@@ -126,7 +126,8 @@ gen:
     ;
 
 expr_list:
-    expr { $1 :: [] }
+    | { [] }
+    | expr { $1 :: [] }
     | expr COMMA expr_list { $1 :: $3 }
     ;
 
