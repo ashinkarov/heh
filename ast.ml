@@ -2,7 +2,7 @@ open Printf
 
 exception ImapFailure of string
 
-type expr = 
+type expr =
     | EFalse
     | ETrue
     | ENum of ord
@@ -10,7 +10,7 @@ type expr =
     | EVar of string
 
     | EArray of expr list
-    
+
     | EBinOp of binop * expr * expr
     | EUnary of unaryop * expr
 
@@ -38,7 +38,7 @@ and binop =
     | OpEq
     | OpNe
 
-and unaryop = 
+and unaryop =
     | OpShape
     | OpIsLim
 
@@ -59,7 +59,7 @@ and value =
 
 and vgen = value * string * value
 
-and expr_or_ptr = 
+and expr_or_ptr =
     | EPptr of string
     | EPexpr of expr
 
@@ -72,7 +72,7 @@ let rec expr_to_str e =
     match e with
     | ETrue ->
             "true"
-    | EFalse -> 
+    | EFalse ->
             "false"
     | ENum (e1) ->
             "Number XXX"
@@ -80,18 +80,18 @@ let rec expr_to_str e =
             array_to_str e1
     | EVar (x) ->
             sprintf "%s" x
-    | EFilter (e1, e2) -> 
+    | EFilter (e1, e2) ->
             sprintf "filter %s %s" (expr_to_str e1) (expr_to_str e2)
-    | EReduce (e1, e2, e3) -> 
+    | EReduce (e1, e2, e3) ->
             sprintf "reduce %s %s %s"
                     (expr_to_str e1) (expr_to_str e2) (expr_to_str e3)
-    | EImap (e1, e2, gelst) -> 
-            sprintf "imap %s|%s { %s" 
+    | EImap (e1, e2, gelst) ->
+            sprintf "imap %s|%s { %s"
                     (expr_to_str e1) (expr_to_str e2) (gen_expr_list_to_str gelst)
     | ELetRec (x, e1, e2) ->
             sprintf "letrec %s = %s in %s"
                      x (expr_to_str e1) (expr_to_str e2)
-    | ECond (e1, e2, e3) -> 
+    | ECond (e1, e2, e3) ->
             sprintf "if %s then %s else %s"
                     (expr_to_str e1) (expr_to_str e2) (expr_to_str e3)
     | EApply (e1, e2) ->
@@ -109,15 +109,15 @@ and array_to_str e =
     String.concat ", " (List.map expr_to_str e)
 
 and gen_expr_list_to_str gelst =
-    String.concat ", " 
-                (List.map (fun ge -> 
+    String.concat ", "
+                (List.map (fun ge ->
                            let (g, e1) = ge in
                            sprintf "%s: (%s)" (gen_to_str g) (expr_to_str e1)) gelst)
 and gen_to_str g =
     let (e1, x, e2) = g in
     sprintf "%s <= %s < %s" (expr_to_str e1) x (expr_to_str e2)
 
-and bop_to_str bop = 
+and bop_to_str bop =
     match bop with
     | OpPlus -> "+"
     | OpMinus -> "-"
