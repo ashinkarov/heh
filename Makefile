@@ -10,3 +10,7 @@ all: main.native
 
 main.native: $(SRC)
 	$(OCB) main.native
+
+clean:
+	$(OCB) -clean
+
