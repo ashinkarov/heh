@@ -1,6 +1,13 @@
 %{
 
-open Ast;;
+open Ast
+open Lexing
+
+let error_loc pos msg =
+    let line = pos.pos_lnum in
+    let col = pos.pos_cnum - pos.pos_bol in
+    Printf.sprintf "error:%d:%d: %s" line col msg
+;;
 
 %}
 
@@ -43,6 +50,10 @@ open Ast;;
 
 
 prog: expr EOF { $1 }
+      | error
+      {
+          raise (ImapFailure (error_loc $startpos "parser failed"))
+      }
       ;
 
 
