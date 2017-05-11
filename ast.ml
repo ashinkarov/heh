@@ -97,7 +97,7 @@ let rec expr_to_str e =
     | EApply (e1, e2) ->
             sprintf "((%s) (%s))" (expr_to_str e1) (expr_to_str e2)
     | ELambda (x, e1) ->
-            sprintf "\\%s.(%s)" x (expr_to_str e1)
+            sprintf "λ%s.(%s)" x (expr_to_str e1)
     | EBinOp (bop, e1, e2) ->
             sprintf "%s %s %s" (expr_to_str e1) (bop_to_str bop) (expr_to_str e2)
     | EUnary (uop, e1) ->

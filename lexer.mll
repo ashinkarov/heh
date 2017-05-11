@@ -27,8 +27,11 @@ rule token = parse
   | "else"                              { ELSE }
   | "letrec"                            { LETREC }
   | "in"                                { IN }
-  | "w"                                 { OMEGA }
+  | "omega"                             { OMEGA }
+  | "ω"                                 { OMEGA }
   | "islim"                             { ISLIM }
+  | "imap"                              { IMAP }
+  | "λ"                                 { LAMBDA }
   | "\\"                                { LAMBDA }
   | "."                                 { DOT }
   | "|"                                 { BAR }
