@@ -3,7 +3,8 @@ OCB := ocamlbuild -j 8 -use-ocamlfind -use-menhir
 SRC := ast.ml \
        main.ml \
        lexer.mll \
-       parser.mly
+       parser.mly \
+       ordinals.ml
 
 all: main.native
 

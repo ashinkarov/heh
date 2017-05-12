@@ -1,11 +1,12 @@
 open Printf
+open Ordinals
 
 exception ImapFailure of string
 
 type expr =
     | EFalse
     | ETrue
-    | ENum of ord
+    | ENum of ordinal
 
     | EVar of string
 
@@ -55,16 +56,13 @@ and value =
     | VImap of string * string * (vgen * expr_or_ptr) list * env
 
     (* :: ptr_func * ptr_expr * [limit_ord * vector * int] *)
-    | VFilter of string * string * (ord * (value list) * int) list
+    | VFilter of string * string * (ordinal * (value list) * int) list
 
 and vgen = value * string * value
 
 and expr_or_ptr =
     | EPptr of string
     | EPexpr of expr
-
-and ord = (int * int) list
-
 ;;
 
 
@@ -75,7 +73,7 @@ let rec expr_to_str e =
     | EFalse ->
             "false"
     | ENum (e1) ->
-            "Number XXX"
+            ord_to_str e1
     | EArray (e1) ->
             sprintf "[%s]" (array_to_str e1)
     | EVar (x) ->

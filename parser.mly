@@ -2,6 +2,7 @@
 
 open Ast
 open Lexing
+open Ordinals
 
 let error_loc pos msg =
     let line = pos.pos_lnum in
@@ -143,8 +144,8 @@ expr_list:
     ;
 
 const:
-    INT { ENum ((0, $1) :: []) }
-    | OMEGA { ENum ((1, 0) :: []) }
+    INT { ENum (int_to_ord $1) }
+    | OMEGA { ENum (omega) }
     | LSQUARE expr_list RSQUARE
       {
           EArray ($2)

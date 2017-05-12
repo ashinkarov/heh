@@ -2,6 +2,7 @@
 open Printf;;
 open Ast;;
 open Traverse;;
+open Ordinals;;
 
 (* XXX these variables are not in use and serve an example on how to handle
    command line arguments.  *)
@@ -31,6 +32,8 @@ let main =
                   else
                     fname := x)
         usage;
+    
+    test_ordinals ();
    
     let file = open_in !fname in
     let lexbuf = Lexing.from_channel file in
