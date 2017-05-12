@@ -4,7 +4,9 @@ SRC := ast.ml \
        main.ml \
        lexer.mll \
        parser.mly \
-       ordinals.ml
+       ordinals.ml \
+       storage.ml \
+       env.ml
 
 all: main.native
 

@@ -32,9 +32,11 @@ let main =
                   else
                     fname := x)
         usage;
-    
+
     test_ordinals ();
-   
+    Storage.test_storage ();
+    Env.test_env ();
+
     let file = open_in !fname in
     let lexbuf = Lexing.from_channel file in
     let e = Parser.prog Lexer.token lexbuf in
