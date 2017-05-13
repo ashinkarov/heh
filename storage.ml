@@ -60,7 +60,7 @@ let st_to_str st =
                     "%s |-> %s%s"
                     k
                     (Ast.value_to_str v)
-                    (if tail_s = "" then "" else ", ")) st ""
+                    (if tail_s = "" then "" else Printf.sprintf ", %s" tail_s)) st ""
 ;;
 
 

@@ -79,6 +79,19 @@ let ord_to_nat o =
                   (sprintf "attempt to convert %s to integer" (ord_to_str o)))
 ;;
 
+(* FIXME test this.  *)
+let ord_is_lim o =
+    if o = zero then
+        false
+    else 
+        let last = (List.hd (List.rev o)) in
+        (* if the least exponent of the ordinal in CNF is zero, then
+           the coefficient is greater than zero (otherwise we would represent
+           zero as []), therefore the ordinal is of the form \alpha + k where
+           k is nat.  *)
+        last.exp <> zero
+;;
+
 (* compare two ordinals *)
 let rec compare o1 o2 =
     (* printf "comparing (%s) and (%s)" (ord_to_str o1) (ord_to_str o2);*)

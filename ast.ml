@@ -46,6 +46,8 @@ and unaryop =
 and generator = expr * string * expr
 
 and value =
+    | VFalse
+    | VTrue
     | VNum of ordinal
     | VArray of value list * value list
     | VClosure of expr * Env.env
@@ -66,6 +68,10 @@ and expr_or_ptr =
 
 let rec value_to_str v =
     match v with
+    | VFalse ->
+            "vfalse"
+    | VTrue ->
+            "vtrue"
     | VNum o ->
             ord_to_str o
     | VArray (shp, data) ->

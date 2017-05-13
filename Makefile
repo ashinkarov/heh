@@ -6,13 +6,17 @@ SRC := ast.ml \
        parser.mly \
        ordinals.ml \
        storage.ml \
-       env.ml
+       env.ml \
+       eval.ml
 
 all: main.native
 
 
 main.native: $(SRC)
 	$(OCB) main.native
+
+main.d.byte: $(SRC)
+	$(OCB)  main.d.byte
 
 clean:
 	$(OCB) -clean
