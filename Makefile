@@ -7,7 +7,8 @@ SRC := ast.ml \
        ordinals.ml \
        storage.ml \
        env.ml \
-       eval.ml
+       eval.ml \
+       globals.ml
 
 all: main.native
 

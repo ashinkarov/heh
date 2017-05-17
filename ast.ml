@@ -87,7 +87,7 @@ and val_lst_to_str lst =
     String.concat ", " (List.map value_to_str lst)
 
 and vpart_lst_to_str lst =
-    String.concat ", " (List.map (fun gen_exp_ptr ->
+    String.concat ",\n " (List.map (fun gen_exp_ptr ->
                                   let vg, ep = gen_exp_ptr in
                                   let vgs = vgen_to_str vg in
                                   match ep with
@@ -104,6 +104,9 @@ and vgen_to_str vg =
     let lb, x, ub = vg in
     sprintf "%s <= %s < %s" (value_to_str lb) x (value_to_str ub)
 
+(* TODO This printing is concise, but horribly inefficient as we copy the same string
+        over and over again when substituting patterns recursively.  An alternative would
+        be to combine patterns in a string tree first and then flatten it once.  *)
 and expr_to_str e =
     match e with
     | ETrue ->
