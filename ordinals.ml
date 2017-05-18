@@ -21,7 +21,6 @@ type
     term = { exp: ordinal; coeff: int }
 and
     ordinal = term list
-;;
 
 
 (* zero is an sum with no terms.  *)
@@ -42,14 +41,13 @@ let int_to_ord x =
     else
         raise (OrdinalFailure
                (sprintf "Attempt to convert number %d to ordinal" x))
-;;
-
 
 let rec ord_to_str o =
     if o = zero then
         "0"
     else
         String.concat " + " (List.map term_to_str o)
+
 
 and term_to_str t =
     match t with
@@ -60,7 +58,6 @@ and term_to_str t =
     | {exp = [{exp = []; coeff = n}]; coeff = m} -> sprintf "ω^%d*%d" n m
     | {exp = a; coeff = 1} -> sprintf "ω^(%s)" (ord_to_str a)
     | {exp = a; coeff = n} -> sprintf "ω^(%s)*%d" (ord_to_str a) n
-;;
 
 
 (* function that tests whether the ordinal is a natural number < w  *)
@@ -69,7 +66,7 @@ let isnat o =
     | [] -> true
     | [{ exp = []; coeff = _ }] -> true
     | _ -> false
-;;
+
 
 let ord_to_nat o =
     match o with
@@ -77,20 +74,18 @@ let ord_to_nat o =
     | [{exp = []; coeff = n}] -> n
     | _ -> raise (OrdinalFailure
                   (sprintf "attempt to convert %s to integer" (ord_to_str o)))
-;;
 
-(* FIXME test this.  *)
 let ord_is_lim o =
     if o = zero then
         false
-    else 
+    else
         let last = (List.hd (List.rev o)) in
         (* if the least exponent of the ordinal in CNF is zero, then
            the coefficient is greater than zero (otherwise we would represent
            zero as []), therefore the ordinal is of the form \alpha + k where
            k is nat.  *)
         last.exp <> zero
-;;
+
 
 (* compare two ordinals *)
 let rec compare o1 o2 =
@@ -107,12 +102,17 @@ let rec compare o1 o2 =
          if coeffcomp <> 0 then coeffcomp
          else
              compare (List.tl o1) (List.tl o2)
-;;
+
 
 (* ordinal addition.  *)
 let rec add  o1 o2 =
+    (*Printf.printf "--[add] `%s' + `%s'\n" (ord_to_str o1) (ord_to_str o2);*)
     if isnat o1 && isnat o2 then
         int_to_ord ((ord_to_nat o1) + (ord_to_nat o2))
+    else if o1 = zero then
+        o2
+    else if o2 = zero then
+        o1
     else
         let expcomp = compare (List.hd o1).exp (List.hd o2).exp in
         if expcomp = -1 (* lt *) then
@@ -123,7 +123,6 @@ let rec add  o1 o2 =
         else
             {exp = (List.hd o1).exp; coeff = (List.hd o1).coeff }
             :: (add (List.tl o1) o2)
-;;
 
 
 (* ordinal multiplication.  *)
@@ -140,7 +139,7 @@ let rec mult o1 o2 =
     else
         { exp = add (List.hd o1).exp (List.hd o2).exp; coeff = (List.hd o2).coeff}
         :: mult o1 (List.tl o2)
-;;
+
 
 let rec sub o1 o2 =
     if compare o1 o2 = -1 then
@@ -148,6 +147,8 @@ let rec sub o1 o2 =
                (sprintf "attempt to evaluate (%s) - (%s)" (ord_to_str o1) (ord_to_str o2)))
     else if isnat o1 && isnat o2 then
         int_to_ord ((ord_to_nat o1) - (ord_to_nat o2))
+    else if o2 = zero then
+        o1
     else if (compare (List.hd o1).exp (List.hd o2).exp) = 1 (* gt *) then
         o1
     (* exponent of o1 cannot be less than exponent of o2 because of the first case, so
@@ -159,45 +160,5 @@ let rec sub o1 o2 =
        therefore they are equal.  *)
     else
         sub (List.tl o1) (List.tl o2)
-;;
-
-
-let test_ordinals () =
-    printf "ord w = %s\n" (ord_to_str [{exp = [{exp = []; coeff = 1}]; coeff = 1}]);
-    printf "ord w = %s\n" (ord_to_str omega);
-    printf "ord w = %s\n" (ord_to_str [{exp = one; coeff = 1}]);
-    printf "ord 44 = %s\n" (ord_to_str [{exp = zero; coeff = 44}]);
-    printf "ord w^w = %s\n" (ord_to_str [{exp = omega; coeff = 1}]);
-    printf "ord w^w + w*2 = %s\n" (ord_to_str [{exp = omega; coeff = 1};{exp = one; coeff = 2}]);
-    printf "ord w^w + 33 = %s\n" (ord_to_str [{exp = omega; coeff = 1};{exp = zero; coeff = 33}]);
-    printf "comparisons\n";
-    printf "1 ? 3 = %d\n" (compare one (int_to_ord  3));
-    printf "w ? 1 = %d\n" (compare omega (int_to_ord  1));
-    printf "w +1 ? w = %d\n" (compare [{exp = one; coeff = 1}; {exp = []; coeff = 1}] omega);
-    printf "w*2 + 1 ? w*2 = %d\n" (compare [{exp = one; coeff = 1}; {exp = []; coeff = 1}]
-                                           [{exp = one; coeff = 2} ]);
-    printf "w^w + 1 ? w = %d\n" (compare [{exp = omega; coeff = 1}; {exp = []; coeff = 1}]
-                                         omega);
-    printf "addition\n";
-    printf "1 + 1 = %s\n" (ord_to_str (add one one));
-    printf "w + 1 = %s\n" (ord_to_str (add omega one));
-    printf "1 + w = %s\n" (ord_to_str (add one omega));
-    printf "w + w = %s\n" (ord_to_str (add omega omega));
-    printf "w + w + 1 = %s\n" (ord_to_str (add (add omega omega) one));
-    printf "multiplication\n";
-    printf "1 * 1 = %s\n" (ord_to_str (mult one one));
-    printf "w * 1 = %s\n" (ord_to_str (mult omega one));
-    printf "w * w = %s\n" (ord_to_str (mult omega omega));
-    printf "(w+1) * 2 = %s\n" (ord_to_str (mult (add omega one) [{exp = []; coeff = 2}]));
-    printf "(w*w+1) * 2 = %s\n" (ord_to_str (mult (add (mult omega omega) one) [{exp = []; coeff = 2}]));
-    printf "subtraction\n";
-    printf "1 - 1 = %s\n" (ord_to_str (sub one one));
-    printf "w - 1 = %s\n" (ord_to_str (sub omega one));
-    printf "w - w = %s\n" (ord_to_str (sub omega omega));
-    printf "(w + w) - 1 = %s\n" (ord_to_str (sub (add omega omega) one));
-    printf "(w + 1) - 1 = %s\n" (ord_to_str (sub (add omega one) one));
-
-    ()
-;;
 
 

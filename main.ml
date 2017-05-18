@@ -10,14 +10,6 @@ let arglist = [
   ]
 
 
-(* TODO factor this out into a separate module and compilation target, e.g. tests.  *)
-let run_tests () =
-    Ordinals.test_ordinals ();
-    Storage.test_storage ();
-    Env.test_env ()
-;;
-
-
 let main =
     Arg.parse_argv
         Sys.argv
@@ -28,7 +20,6 @@ let main =
                     fname := x)
         usage;
 
-    (* run_tests (); *)
     let file = open_in !fname in
     let lexbuf = Lexing.from_channel file in
     let e = Parser.prog Lexer.token lexbuf in
