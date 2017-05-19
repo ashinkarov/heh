@@ -2,6 +2,8 @@ open OUnit
 open Test_ordinals
 open Test_storage
 open Test_env
+open Test_lexi_next
+open Test_eval_reduce
 
 
 let suite =
@@ -23,6 +25,14 @@ let suite =
         "Env testsuite" >:::
         [
             "environment-test" >:: test_env
+        ];
+        "Eval helpers" >:::
+        [
+            "lexi-next" >:: test_lexi_next
+        ];
+        "Eval progrs" >:::
+        [
+            "eval redyce" >:: test_eval_reduce
         ];
     ]
 

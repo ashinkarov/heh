@@ -516,7 +516,29 @@ let add_fresh_val_as_result st v =
     let p = fresh_ptr_name () in
     let st = st_add st p v in
     (st, p)
-;;
+
+let lexi_next v lb ub =
+    let rec _upd v lb ub carry =
+        match v, lb, ub with
+        | [], [], [] ->
+                []
+        | (v::vt), (l::lt), (u::ut) ->
+                let v' = value_num_add v carry in
+                if v' = u then
+                    l :: (_upd vt lt ut @@ mk_int_value 1)
+                else
+                    v' :: vt
+        | _ -> failwith "lexi_next"
+    in
+
+    (* For the "last" index (ub-1) we just increase the last element by one.  *)
+    if List.map (fun x -> value_num_add x @@ mk_int_value 1) v = ub then
+        let vl, _ = list_split v (List.length v - 1) in
+        let _, ubr = list_split ub (List.length ub - 1) in
+        List.append vl ubr
+    else
+        List.rev @@
+        _upd (List.rev v) (List.rev lb) (List.rev ub) @@ mk_int_value 1
 
 let rec eval st env e =
     match e with
@@ -668,6 +690,26 @@ let rec eval st env e =
     | _ -> failwith (sprintf "I don't know how to evaluate `%s'" (expr_to_str e))
 
 
+and eval_bin_app st env p_func p_arg1 p_arg2 msg =
+    try
+        eval st
+             (env_add (env_add (env_add env "__x0" p_arg1) "__x1" p_arg2) "__func" p_func)
+             (EApply (EApply (EVar ("__func"), EVar ("__x0")), EVar ("__x1")))
+    with
+        EvalFailure _ ->
+            eval_err msg
+
+(* Evaluate selection p_obj at p_idx and emit msg in case
+   evaluation throws an exception.  *)
+and eval_obj_sel st env p_obj p_idx msg =
+    try
+        eval st
+             (env_add (env_add env "__idx" p_idx) "__obj" p_obj)
+             (EApply (EVar ("__obj"), EVar ("__idx")))
+    with
+        EvalFailure _ ->
+            eval_err msg
+
 and eval_selection st env p1 p2 =
     let v1 = st_lookup st p1 in
     let idx_shp_vec, idx_data_vec = value_array_to_pair (st_lookup st p2) in
@@ -772,26 +814,53 @@ and eval_gen_expr_lst st env idx_shp_vec ge_lst =
    - pa is selectable
    - dim (pa) > 0   *)
 and eval_reduce st env pfunc pneut pa =
-    let rec reduce_lst st lst =
+    (* Evaluate application of p_func to p_arg1 p_arg2 and emit msg in case
+       evaluation throws an exception.  *)
+    let rec reduce_lst st lst p_res =
         match lst with
         | [] ->
-                (st, pneut)
+                (st, p_res)
         | v :: tl ->
-                let p1 = fresh_ptr_name () in
-                let (st, p2) = reduce_lst st tl in
-                let st = st_add st p1 v in
-                (* TODO wrap this in the try/with block to give a better error
-                        message in case the computation will fail.  *)
-                eval
-                    st
-                    (env_add (env_add (env_add env "__x0" p1) "__x1" p2) "__func" pfunc)
-                    (EApply (EApply (EVar ("__func"), EVar ("__x0")), EVar ("__x1")))
+                let p_el = fresh_ptr_name () in
+                let st = st_add st p_el v in
+                let st, p_res' =
+                    eval_bin_app
+                        st env pfunc p_res p_el
+                        @@ sprintf "evaluation of reduction step (%s) (%s) (%s) failed"
+                                   (value_to_str @@ st_lookup st pfunc)
+                                   (value_to_str @@ st_lookup st p_res)
+                                   (value_to_str v)
+                in reduce_lst st tl p_res'
     in
+    let rec reduce_selectable st lb ub idx p_res =
+        if not @@ value_num_vec_lt idx ub then
+            (st, p_res)
+        else
+            (* Make selection at `idx' *)
+            let p_idx = fresh_ptr_name () in
+            let st = st_add st p_idx @@ mk_vector idx in
+            let st, p_el = eval_obj_sel st env pa p_idx
+                           @@ sprintf "evaluation of reduction failed at selection (%s) (%s)"
+                                      (value_to_str @@ st_lookup st pa)
+                                      (value_to_str @@ st_lookup st p_idx) in
+            (* Reduce current result and the selected element.  *)
+            let st, p_res' =
+                    eval_bin_app
+                        st env pfunc p_res p_el
+                        @@ sprintf "evaluation of reduction step (%s) (%s) (%s) failed"
+                                   (value_to_str @@ st_lookup st pfunc)
+                                   (value_to_str @@ st_lookup st p_res)
+                                   (value_to_str @@ st_lookup st p_el)
+            in reduce_selectable st lb ub (lexi_next idx lb ub) p_res'
+    in
+
     let va = st_lookup st pa in
     match va with
     | VArray (_, data_vec) ->
-            reduce_lst st data_vec
+            reduce_lst st data_vec pneut
     | _ ->
-            (* FIXME *)
-            failwith "I'm too stupid to evaluate reductions over non-arrays"
-;;
+            let _, shp = value_array_to_pair @@ shape st pa in
+            let lb = List.map (fun x -> mk_int_value 0) shp in
+            reduce_selectable st lb shp lb pneut
+
+

@@ -14,7 +14,9 @@ TEST_SRC := \
        tests/test.ml \
        tests/test_ordinals.ml \
        tests/test_storage.ml \
-       tests/test_env.ml
+       tests/test_env.ml \
+       tests/test_lexi_next.ml \
+       tests/test_eval_reduce.ml
 
 all: main.native test.native
 
