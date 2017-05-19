@@ -638,12 +638,9 @@ let rec eval st env e =
     | EImap (e1, e2, ge_lst) ->
             let (st, p1) = eval st env e1 in
             let (st, p2) = eval st env e2 in
-            (* TODO check whether the shape is finite or infinite. *)
-            (* In case the shape is infinite we evaluate generators and create
-               a closure that contains the imap.  *)
-            let shp_vec, data_vec = value_array_to_pair @@ st_lookup st p1 in
-            let st, vg_expr_lst = eval_gen_expr_lst st env shp_vec ge_lst in
-            let lb = List.map (fun x -> mk_int_value 0) data_vec in
+            let shp_out_vec, data_out_vec = value_array_to_pair @@ st_lookup st p1 in
+            let st, vg_expr_lst = eval_gen_expr_lst st env shp_out_vec ge_lst in
+            let lb = List.map (fun x -> mk_int_value 0) data_out_vec in
             (* Throw away all the empty partitions. *)
             let vg_expr_lst = List.flatten @@
                               List.map (fun x ->
@@ -661,15 +658,23 @@ let rec eval st env e =
                                         end) vg_expr_lst in
             if not @@ check_parts_form_partition
                             lb
-                            data_vec
+                            data_out_vec
                             vg_expr_lst then
                 eval_err @@ sprintf "partitions of `%s' do not fill the specified imap range ([%s], [%s])"
-                                    (expr_to_str e) (val_lst_to_str lb) (val_lst_to_str data_vec);
+                                    (expr_to_str e) (val_lst_to_str lb) (val_lst_to_str data_out_vec);
             if check_parts_intersect vg_expr_lst then
                 eval_err @@ sprintf "partitions of `%s' are not disjoint"
                                     (expr_to_str e);
 
-            add_fresh_val_as_result st (VImap (p1, p2, vg_expr_lst, env))
+            (* FIXME It is not good enough to check that the shape is finite,
+                     we would also need to check that the structure is not
+                     recursive.  *)
+            let shp_in_vec, data_in_vec = value_array_to_pair @@ st_lookup st p2 in
+            if List.for_all (fun x -> (value_num_compare x (VNum omega)) = -1)
+                            (List.append data_out_vec data_in_vec) then
+                eval_strict_imap st env p1 p2 vg_expr_lst
+            else
+                add_fresh_val_as_result st (VImap (p1, p2, vg_expr_lst, env))
 
     | EReduce (func, neut, a) ->
             let (st, pfunc) = eval st env func in
@@ -738,9 +743,8 @@ and eval_selection st env p1 p2 =
                     (st, p)
             (* if value at idx_o is not computed  *)
             | EPexpr (e) ->
-                    let lb, var, ub = vg in
-                    let idx_o_ptr = fresh_ptr_name () in
-                    let st = st_add st idx_o_ptr (VArray (vo_shp, idx_o)) in
+                    let _, var, _ = vg in
+                    let st, idx_o_ptr = add_fresh_val_as_result st @@ VArray (vo_shp, idx_o) in
                     let st, p = eval st (env_add env' var idx_o_ptr) e in
                     (* split partition and update imap *)
                     (* NOTE after evaluating an expression, the index of a partition
@@ -753,20 +757,10 @@ and eval_selection st env p1 p2 =
             debug @@
             sprintf "--[imap-sel] inner imap selection: `%s' at [%s]"
                     (value_to_str @@ st_lookup st ptr_out) (val_lst_to_str idx_i);
-            let pidx = fresh_ptr_name () in
-            let st = st_add st pidx (VArray (vi_shp, idx_i)) in
-            begin
-                try
-                    eval
-                        st
-                        (env_add (env_add env' "__a" ptr_out) "__idx" pidx)
-                        (EApply (EVar ("__a"), EVar ("__idx")))
-
-                with
-                    EvalFailure _ ->
-                    eval_err @@ sprintf "failed to perform inner imap selection `%s' at [%s]"
-                                        (value_to_str @@ st_lookup st ptr_out) (val_lst_to_str idx_i)
-            end
+            let st, pidx = add_fresh_val_as_result st @@ VArray (vi_shp, idx_i) in
+            eval_obj_sel st env' ptr_out pidx
+                         @@ sprintf "failed to perform inner imap selection `%s' at [%s]"
+                                    (value_to_str @@ st_lookup st ptr_out) (val_lst_to_str idx_i)
 
     | _ ->
             (* FIXME *)
@@ -863,4 +857,58 @@ and eval_reduce st env pfunc pneut pa =
             let lb = List.map (fun x -> mk_int_value 0) shp in
             reduce_selectable st lb shp lb pneut
 
+
+and eval_strict_imap st env p_out p_inner parts =
+    let out_idx_hash: (value list,  string) Hashtbl.t = Hashtbl.create 100 in
+    let out_shp_v, out_v = value_array_to_pair @@ st_lookup st p_out in
+    let in_shp_v, in_v = value_array_to_pair @@ st_lookup st p_inner in
+
+    let in_hash ht ptr =
+        try Hashtbl.find ht ptr; true with Not_found -> false
+    in
+    let rec eval_idxes st env glb gub idx parts res =
+        (*printf "--- eval-idxes: idx = [%s]\n" (val_lst_to_str idx);*)
+        if not @@ value_num_vec_lt idx gub then
+            res
+        else
+            let idx_o, idx_i = list_split idx (List.length out_v) in
+            (*printf "--- eval-idxes: idx_o = [%s], idx_i = [%s]\n"
+                   (val_lst_to_str idx_o) (val_lst_to_str idx_i);*)
+            (* find partition *)
+            let part_idx, (vg, e) = find_partition parts idx_o in
+            (* extract or evaluate the expression at index idx_o.  *)
+            let (st, ptr_out) = match e with
+            (* if value at idx_o is already computed  *)
+            | EPptr (p) ->
+                    (st, p)
+            (* if value at idx_o is not computed  *)
+            | EPexpr (e) ->
+                    if in_hash out_idx_hash idx_o then
+                    begin
+                        (*printf "--- found [%s] in hash\n" (val_lst_to_str idx_o);*)
+                        (st, Hashtbl.find out_idx_hash idx_o)
+                    end
+                    else
+                       let _, x, _ = vg in
+                       let st, p_idx_o = add_fresh_val_as_result st @@ VArray (out_shp_v, idx_o) in
+                       let st, p = eval st (env_add env x p_idx_o) e in
+                       Hashtbl.add out_idx_hash idx_o p;
+                       (st, p)
+            in
+            debug @@
+            sprintf "--[eval-strict-imap] inner imap selection: `%s' at [%s]"
+                    (value_to_str @@ st_lookup st ptr_out) (val_lst_to_str idx_i);
+            let st, p_idx_i = add_fresh_val_as_result st @@ VArray (in_shp_v, idx_i) in
+            let st, p_el = eval_obj_sel st env ptr_out p_idx_i
+                               @@ sprintf "evaluation of strict imap failed at selection (%s) (%s)"
+                                          (value_to_str @@ st_lookup st ptr_out)
+                                          (value_to_str @@ st_lookup st p_idx_i) in
+            let v = st_lookup st p_el in
+            eval_idxes st env glb gub (lexi_next idx glb gub) parts (v :: res)
+
+    in
+    let gub = List.append out_v in_v in
+    let glb = List.map (fun x -> mk_int_value 0) gub in
+    let data = eval_idxes st env glb gub glb parts [] in
+    add_fresh_val_as_result st (VArray (gub, List.rev data))
 
