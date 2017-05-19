@@ -487,6 +487,8 @@ let update_imap_part st imap_ptr idx_vec ptr =
     in
 
     let p1, p2, parts, env = value_imap_to_tuple @@ st_lookup st imap_ptr in
+    (* We find partition here instead of using the memoized value as
+       during recursive evaluation, the index of partition may change.  *)
     let part_idx, _ = find_partition parts idx_vec in
     let ((lb, x, ub), e) = List.nth parts part_idx in
     (* FIXME Here we can inspect `e' and if it is a pointer, we can avoid
@@ -666,12 +668,13 @@ let rec eval st env e =
                 eval_err @@ sprintf "partitions of `%s' are not disjoint"
                                     (expr_to_str e);
 
-            (* FIXME It is not good enough to check that the shape is finite,
+            let shp_in_vec, data_in_vec = value_array_to_pair @@ st_lookup st p2 in
+            if  !finite_imap_strict_on
+                && List.for_all (fun x -> (value_num_compare x (VNum omega)) = -1)
+                                  (List.append data_out_vec data_in_vec) then
+                (* FIXME It is not good enough to check that the shape is finite,
                      we would also need to check that the structure is not
                      recursive.  *)
-            let shp_in_vec, data_in_vec = value_array_to_pair @@ st_lookup st p2 in
-            if List.for_all (fun x -> (value_num_compare x (VNum omega)) = -1)
-                            (List.append data_out_vec data_in_vec) then
                 eval_strict_imap st env p1 p2 vg_expr_lst
             else
                 add_fresh_val_as_result st (VImap (p1, p2, vg_expr_lst, env))
@@ -747,11 +750,11 @@ and eval_selection st env p1 p2 =
                     let st, idx_o_ptr = add_fresh_val_as_result st @@ VArray (vo_shp, idx_o) in
                     let st, p = eval st (env_add env' var idx_o_ptr) e in
                     (* split partition and update imap *)
-                    (* NOTE after evaluating an expression, the index of a partition
-                       might change!  Therefore we need to search it again.  *)
-                    (* TODO introduce flag to turn memoization off.  *)
-                    let st = update_imap_part st p1 idx_o p in
-                    (st, p)
+                    if !memo_on then
+                        let st = update_imap_part st p1 idx_o p in
+                        (st, p)
+                    else
+                        (st, p)
             in
             (* make selection *)
             debug @@

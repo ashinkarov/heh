@@ -5,8 +5,21 @@ open Globals
 
 (* XXX this is an example on how to handel command-line arguments.  *)
 let arglist = [
-    ("-s", Arg.String (fun s -> somestr := s), ": follows -s sets some string");
-    ("-d", Arg.Set    (debug_on), ": enable debug output");
+    ("-s",
+        Arg.String (fun s -> somestr := s),
+        ": follows -s sets some string");
+
+    ("-d",
+        Arg.Set (debug_on),
+        ": enable debug output");
+
+    ("-nomemo",
+        Arg.Clear (memo_on),
+        ": disable memoization when computing lazy imaps");
+
+    ("-finite-imap-strict",
+        Arg.Set (finite_imap_strict_on),
+        ": enable strict evaluation of imaps of finite shapes");
   ]
 
 

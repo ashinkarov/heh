@@ -6,6 +6,12 @@ let somestr = ref ""
 (* Whether debug output is on.  *)
 let debug_on = ref false
 
+(* Whether we memoize values when evaluating imaps.  *)
+let memo_on = ref true
+
+(* Whether we evaluate imaps of finite shape strictly.  *)
+let finite_imap_strict_on = ref false
+
 (* The name of the file we parse.  *)
 let fname = ref ""
 
@@ -13,7 +19,7 @@ let fname = ref ""
    triggered by --help flag.  *)
 let usage = "usage: "
 
-let debug msg = 
+let debug msg =
     if !debug_on then
         Printf.printf "%s\n" msg
 ;;
