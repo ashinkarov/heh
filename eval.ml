@@ -3,20 +3,25 @@ open Ast
 open Ordinals
 open Storage
 open Env
+open Value
+open Valueops
+open Print
 open Printf
 
-
+(* TODO:
+    * write tests for imap
+    * implement filter
+*)
 exception EvalFailure of string
 
-(* A global variable to generate unique names of pointers.  *)
+(* A global variable to generate unique names of pointers.
+   XXX Shall we move this to globals or make it module-local? *)
 let ptr_count = ref 0
-;;
 
 (* Generate a fresh pointer name.  *)
 let fresh_ptr_name () =
     ptr_count := !ptr_count + 1;
     sprintf "p%d" !ptr_count
-;;
 
 (* zip two lists of the same length.  *)
 let rec zip l1 l2 = match l1,l2 with
@@ -25,7 +30,6 @@ let rec zip l1 l2 = match l1,l2 with
   | (h1::tl1),(h2::tl2) ->
           (h1,h2) :: (zip tl1 tl2)
   | _ -> failwith "lists of different lengths passed to zip"
-;;
 
 let rec list_split lst n =
     match n with
@@ -38,95 +42,13 @@ let rec list_split lst n =
                     (h::l, r)
             end
     | _ -> failwith "list_split"
-;;
-
 
 let eval_err msg =
     raise (EvalFailure msg)
 
+
 let eval_warn msg =
     printf "warning: %s\n" msg
-
-let mk_int_value n = VNum (int_to_ord n)
-
-let mk_empty_array () = VArray ([mk_int_value 0], [])
-
-let mk_vector value_vec =
-    VArray ([mk_int_value @@ List.length value_vec], value_vec)
-
-let value_is_array v =
-    match v with
-    | VArray (_, _) -> true
-    | _ -> false
-
-
-let value_is_num v =
-    match v with
-    | VNum (o) -> true
-    | _ -> false
-
-let value_is_closure v =
-    match v with
-    | VClosure (_, _) -> true
-    | _ -> false
-
-let value_is_selectable v =
-    match v with
-    | VNum (_)
-    | VArray (_, _)
-    | VImap (_, _, _, _)
-    | VFilter (_, _, _) -> true
-    | _ -> false
-
-let value_num_to_ord v =
-    match v with
-    | VNum o -> o
-    | _ -> eval_err @@ sprintf "value_num_to ord called with `%s'" @@ value_to_str v
-
-let value_num_add v1 v2 =
-    VNum (add (value_num_to_ord v1) (value_num_to_ord v2))
-
-let value_num_mult v1 v2 =
-    VNum (mult (value_num_to_ord v1) (value_num_to_ord v2))
-
-(* This function returns an integer. *)
-let value_num_compare v1 v2 =
-    compare (value_num_to_ord v1) (value_num_to_ord v2)
-
-let value_array_to_pair v =
-    match v with
-    | VArray (s, d) -> (s, d)
-    | _ -> eval_err @@ sprintf "value_array_to_pair called with `%s'" @@ value_to_str v
-
-let value_imap_to_tuple v =
-    match v with
-    | VImap (p1, p2, parts, env) -> (p1, p2, parts, env)
-    | _ -> failwith "value_imap_to_tuple"
-
-let value_num_vec_lt l r =
-    List.fold_left2 (fun r x y ->
-                     if not r then
-                         r
-                     else
-                         value_num_compare x y = -1)
-                     true
-                     l r
-
-let value_num_vec_le l r =
-    List.fold_left2 (fun r x y ->
-                     if not r then
-                         r
-                     else
-                         let cmp = value_num_compare x y in
-                         cmp = -1 || cmp = 0)
-                     true
-                     l r
-
-let value_num_vec_in_vgen vec vgen =
-    let lb, x, ub = vgen in
-    let _, lb_data_vec = value_array_to_pair lb in
-    let _, ub_data_vec = value_array_to_pair ub in
-    value_num_vec_le lb_data_vec vec && value_num_vec_lt vec ub_data_vec
 
 
 (* Find a partition in the `(vgen * expr_or_ptr) list' where idx ∊ gen.
@@ -155,21 +77,20 @@ let find_partition lst idx_vec =
     (*printf "--- find parts %s\n for vec %d length = %d returns %s\n"
            (vpart_lst_to_str lst) index (List.length lst) (val_lst_to_str idx_vec);*)
     (index, v)
-;;
 
 
 let shape_v st v =
     match v with
     | VFalse ->
-            mk_empty_array ()
+            mk_empty_vector ()
     | VTrue ->
-            mk_empty_array ()
+            mk_empty_vector ()
     | VNum _ ->
-            mk_empty_array ()
+            mk_empty_vector ()
     | VArray (shp, _) ->
             VArray ([mk_int_value (List.length shp)], shp)
     | VClosure (_, _) ->
-            mk_empty_array ()
+            mk_empty_vector ()
     | VImap (p1, p2, _, _) ->
             let v1 = st_lookup st p1 in
             let v2 = st_lookup st p2 in
@@ -257,13 +178,6 @@ let ptr_list_fst_shape st ptrlst =
         let _, shp_vec = value_array_to_pair (shape st (List.hd ptrlst)) in
         shp_vec
 
-let value_closure_to_triple v =
-    match v with
-    | VClosure (ELambda (x, body), env) ->
-            (x, body, env)
-    | _ ->
-            failwith @@ sprintf "expected closure with abstraction, but got `%s' instead"
-                        @@ value_to_str v
 
 let ptr_binop st op p1 p2 =
     let v1 = st_lookup st p1 in
@@ -290,6 +204,7 @@ let ptr_binop st op p1 p2 =
     | OpGe -> let cmp = compare o1 o2 in
               if cmp = 1 || cmp = 0 then VTrue else VFalse
 
+
 let ptr_unary st op p1 =
     let v1 = st_lookup st p1 in
     match op with
@@ -297,6 +212,7 @@ let ptr_unary st op p1 =
     | OpIsLim -> if not @@ value_is_num v1 then
                     eval_err @@ sprintf "attempt to apply islim to `%s'" @@ value_to_str v1;
                  if ord_is_lim @@ value_num_to_ord v1 then VTrue else VFalse
+
 
 (* update all the enclosed environments of the storage replacing bindings of
    form x |-> pold with x |-> pnew.  *)
@@ -316,6 +232,7 @@ let update_letrec_ptr st pold pnew =
     in
     Hashtbl.filter_map_inplace value_updater st;
     st
+
 
 (* Extract lb-ub pairs from the list of partitions as it is stored in
    in the VImap.  The `lb' and `ub' are lower bound and upper bound of
@@ -519,6 +436,7 @@ let add_fresh_val_as_result st v =
     let st = st_add st p v in
     (st, p)
 
+
 let lexi_next v lb ub =
     let rec _upd v lb ub carry =
         match v, lb, ub with
@@ -542,16 +460,17 @@ let lexi_next v lb ub =
         List.rev @@
         _upd (List.rev v) (List.rev lb) (List.rev ub) @@ mk_int_value 1
 
+
 let rec eval st env e =
     match e with
     | EFalse ->
-            add_fresh_val_as_result st VFalse
+            add_fresh_val_as_result st @@ mk_false_value
 
     | ETrue ->
-            add_fresh_val_as_result st VTrue
+            add_fresh_val_as_result st @@ mk_true_value
 
     | ENum (o) ->
-            add_fresh_val_as_result st (VNum (o))
+            add_fresh_val_as_result st @@ mk_ord_value o
 
     | EVar (x) ->
             (st, (env_lookup env x))
@@ -577,10 +496,10 @@ let rec eval st env e =
                              | _ -> List.append [ptr_val] val_lst)
 
                             ptrlst [] in
-            add_fresh_val_as_result st (VArray (shp, data))
+            add_fresh_val_as_result st @@ mk_array_value shp data
 
     | ELambda (_, _) ->
-            add_fresh_val_as_result st (VClosure (e, env))
+            add_fresh_val_as_result st @@ mk_closure_value e env
 
     | EApply (e1, e2) ->
             let (st, p1) = eval st env e1 in
@@ -677,7 +596,7 @@ let rec eval st env e =
                      recursive.  *)
                 eval_strict_imap st env p1 p2 vg_expr_lst
             else
-                add_fresh_val_as_result st (VImap (p1, p2, vg_expr_lst, env))
+                add_fresh_val_as_result st @@ mk_imap_value p1 p2 vg_expr_lst env
 
     | EReduce (func, neut, a) ->
             let (st, pfunc) = eval st env func in
@@ -707,6 +626,7 @@ and eval_bin_app st env p_func p_arg1 p_arg2 msg =
         EvalFailure _ ->
             eval_err msg
 
+
 (* Evaluate selection p_obj at p_idx and emit msg in case
    evaluation throws an exception.  *)
 and eval_obj_sel st env p_obj p_idx msg =
@@ -717,6 +637,7 @@ and eval_obj_sel st env p_obj p_idx msg =
     with
         EvalFailure _ ->
             eval_err msg
+
 
 and eval_selection st env p1 p2 =
     let v1 = st_lookup st p1 in
@@ -747,7 +668,7 @@ and eval_selection st env p1 p2 =
             (* if value at idx_o is not computed  *)
             | EPexpr (e) ->
                     let _, var, _ = vg in
-                    let st, idx_o_ptr = add_fresh_val_as_result st @@ VArray (vo_shp, idx_o) in
+                    let st, idx_o_ptr = add_fresh_val_as_result st @@ mk_array_value vo_shp idx_o in
                     let st, p = eval st (env_add env' var idx_o_ptr) e in
                     (* split partition and update imap *)
                     if !memo_on then
@@ -760,7 +681,7 @@ and eval_selection st env p1 p2 =
             debug @@
             sprintf "--[imap-sel] inner imap selection: `%s' at [%s]"
                     (value_to_str @@ st_lookup st ptr_out) (val_lst_to_str idx_i);
-            let st, pidx = add_fresh_val_as_result st @@ VArray (vi_shp, idx_i) in
+            let st, pidx = add_fresh_val_as_result st @@ mk_array_value vi_shp idx_i in
             eval_obj_sel st env' ptr_out pidx
                          @@ sprintf "failed to perform inner imap selection `%s' at [%s]"
                                     (value_to_str @@ st_lookup st ptr_out) (val_lst_to_str idx_i)
@@ -768,6 +689,7 @@ and eval_selection st env p1 p2 =
     | _ ->
             (* FIXME *)
             failwith "I'm too stupid to make selection of filters"
+
 
 (* evaluate a list of expressions propagating storage at every recursive call;
    return a tuple: (last storage, list of pointers)  *)
@@ -779,6 +701,7 @@ and eval_expr_lst st env lst =
             let st, p = eval st env e in
             let st, res = eval_expr_lst st env tl in
             (st, p :: res)
+
 
 (* evaluate gen-expr list into vgen-expr list  *)
 and eval_gen_expr_lst st env idx_shp_vec ge_lst =
@@ -893,7 +816,7 @@ and eval_strict_imap st env p_out p_inner parts =
                     end
                     else
                        let _, x, _ = vg in
-                       let st, p_idx_o = add_fresh_val_as_result st @@ VArray (out_shp_v, idx_o) in
+                       let st, p_idx_o = add_fresh_val_as_result st @@ mk_array_value out_shp_v idx_o in
                        let st, p = eval st (env_add env x p_idx_o) e in
                        Hashtbl.add out_idx_hash idx_o p;
                        (st, p)
@@ -901,7 +824,7 @@ and eval_strict_imap st env p_out p_inner parts =
             debug @@
             sprintf "--[eval-strict-imap] inner imap selection: `%s' at [%s]"
                     (value_to_str @@ st_lookup st ptr_out) (val_lst_to_str idx_i);
-            let st, p_idx_i = add_fresh_val_as_result st @@ VArray (in_shp_v, idx_i) in
+            let st, p_idx_i = add_fresh_val_as_result st @@ mk_array_value in_shp_v idx_i in
             let st, p_el = eval_obj_sel st env ptr_out p_idx_i
                                @@ sprintf "evaluation of strict imap failed at selection (%s) (%s)"
                                           (value_to_str @@ st_lookup st ptr_out)
@@ -913,5 +836,5 @@ and eval_strict_imap st env p_out p_inner parts =
     let gub = List.append out_v in_v in
     let glb = List.map (fun x -> mk_int_value 0) gub in
     let data = eval_idxes st env glb gub glb parts [] in
-    add_fresh_val_as_result st (VArray (gub, List.rev data))
+    add_fresh_val_as_result st (mk_array_value gub @@ List.rev data)
 

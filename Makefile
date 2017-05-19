@@ -1,6 +1,8 @@
 OCB := ocamlbuild -j 8 -use-ocamlfind -use-menhir
 
 SRC := ast.ml \
+       value.ml \
+       valueops.ml \
        main.ml \
        lexer.mll \
        parser.mly \
@@ -8,7 +10,8 @@ SRC := ast.ml \
        storage.ml \
        env.ml \
        eval.ml \
-       globals.ml
+       globals.ml \
+       print.ml
 
 TEST_SRC := \
        tests/test.ml \

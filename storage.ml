@@ -1,9 +1,11 @@
 open Ast
+open Value
+open Print
 open Ordinals
 
 exception StorageFailure of string
 
-type storage = (string, Ast.value) Hashtbl.t
+type storage = (string, value) Hashtbl.t
 
 let st_new: unit -> storage = fun () ->
     Hashtbl.create 100
@@ -51,6 +53,6 @@ let st_to_str st =
                   Printf.sprintf
                     "%s |-> %s%s"
                     k
-                    (Ast.value_to_str v)
+                    (value_to_str v)
                     (if tail_s = "" then "" else Printf.sprintf ", %s" tail_s)) st ""
 

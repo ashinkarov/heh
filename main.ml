@@ -37,9 +37,9 @@ let main =
     let lexbuf = Lexing.from_channel file in
     let e = Parser.prog Lexer.token lexbuf in
     let e = Traverse.app_to_hof e in
-    printf "%s\n" (Ast.expr_to_str e);
+    printf "%s\n" (Print.expr_to_str e);
     let st, p = Eval.eval (Storage.st_new ()) (Env.env_new ()) e in
-    printf "%s\nres: %s = %s\n\n" (Storage.st_to_str st) p (value_to_str @@ Storage.st_lookup st p);
+    printf "%s\nres: %s = %s\n\n" (Storage.st_to_str st) p (Print.value_to_str @@ Storage.st_lookup st p);
     close_in file
 
 let () = main

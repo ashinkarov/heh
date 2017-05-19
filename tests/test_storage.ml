@@ -1,5 +1,6 @@
 open OUnit
 open Ast
+open Value
 open Ordinals
 open Storage
 

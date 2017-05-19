@@ -22,5 +22,4 @@ let usage = "usage: "
 let debug msg =
     if !debug_on then
         Printf.printf "%s\n" msg
-;;
 
