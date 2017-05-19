@@ -4,6 +4,7 @@ open Test_storage
 open Test_env
 open Test_lexi_next
 open Test_eval_reduce
+open Test_value
 
 
 let suite =
@@ -26,13 +27,18 @@ let suite =
         [
             "environment-test" >:: test_env
         ];
+        "Value testsuite" >:::
+        [
+            "value constants" >:: test_value_const;
+            "value arrays" >:: test_value_array;
+        ];
         "Eval helpers" >:::
         [
             "lexi-next" >:: test_lexi_next
         ];
         "Eval progrs" >:::
         [
-            "eval redyce" >:: test_eval_reduce
+            "eval reducce" >:: test_eval_reduce
         ];
     ]
 
