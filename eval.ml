@@ -364,7 +364,12 @@ let check_parts_form_partition glb gub parts =
                                 (val_lst_to_str glb) (val_lst_to_str gub)
     in
     let remaining_parts =
-        _intersect [(glb, gub)] @@ vparts_to_pairs parts
+        (* For imaps that generate arrays of zero shape, we don't need
+           to add (glb, gub) as it will be empty partition.  *)
+        let parts_to_cover =
+            if value_num_vec_lt glb gub then [(glb, gub)] else []
+        in
+            _intersect parts_to_cover @@ vparts_to_pairs parts
     in remaining_parts = []
 
 (* Check whether partitions in parts intersect amongst each other.

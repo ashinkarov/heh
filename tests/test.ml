@@ -4,6 +4,7 @@ open Test_storage
 open Test_env
 open Test_lexi_next
 open Test_eval_reduce
+open Test_eval_imap
 open Test_value
 
 
@@ -38,7 +39,8 @@ let suite =
         ];
         "Eval progrs" >:::
         [
-            "eval reducce" >:: test_eval_reduce
+            "eval reduce" >:: test_eval_reduce;
+            "eval imap" >:: test_eval_imap;
         ];
     ]
 

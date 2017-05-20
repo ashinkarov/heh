@@ -31,6 +31,11 @@ let value_is_closure v =
     | VClosure (_, _) -> true
     | _ -> false
 
+let value_is_imap v =
+    match v with
+    | VImap (_, _, _, _) -> true
+    | _ -> false
+
 let value_is_filter v =
     match v with
     | VFilter (_, _, _) -> true
