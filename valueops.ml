@@ -123,6 +123,11 @@ let value_imap_to_tuple v =
     | VImap (p1, p2, parts, env) -> (p1, p2, parts, env)
     | _ -> value_err "value_imap_to_tuple"
 
+let value_filter_to_tuple v =
+    match v with
+    | VFilter (p1, p2, parts) -> (p1, p2, parts)
+    | _ -> value_err "value_filter_to_tuple"
+
 let value_num_vec_lt l r =
     List.fold_left2 (fun r x y ->
                      if not r then
