@@ -68,6 +68,7 @@ rule token = parse
   | "{"                                 { LBRACE }
   | ":"                                 { COLON }
   | ","                                 { COMMA }
+  | "_"                                 { UNDERSCORE }
   | ident as i                          { ID i }
   | eof                                 { EOF }
   | _                                   { raise (ImapFailure "Lexing error") }

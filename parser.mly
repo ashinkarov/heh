@@ -24,7 +24,32 @@ let error_loc pos msg =
     let line = pos.pos_lnum in
     let col = pos.pos_cnum - pos.pos_bol in
     Printf.sprintf "error:%d:%d: %s" line col msg
-;;
+
+(* This is a helper type to allow for short generators of form:
+   _(iv): expr
+   as opposed to regular generators
+   lb_expr <= iv < ub_expr  *)
+type gen_opt =
+     | FullGen of expr * string * expr
+     | DefGen of string
+
+
+let mk_full_gen shp x =
+    let mul_shp_zero =
+        ELambda ("x",
+                 EImap (EUnary (OpShape, EVar ("x")),
+                        EArray ([]),
+                        [((EArray ([ENum (zero)]),
+                           "iv",
+                           EUnary (OpShape, EVar ("x"))),
+
+                          EBinOp (OpMult,
+                                  EApply (EVar ("x"), EVar ("iv")),
+                                  ENum (zero)))]))
+    in
+        (EApply (mul_shp_zero, shp),
+         x,
+         shp)
 
 %}
 
@@ -32,7 +57,7 @@ let error_loc pos msg =
 %token <string> ID
 %token TRUE FALSE IF THEN ELSE LETREC IN OMEGA ISLIM LAMBDA IMAP
 %token BAR DOT COLON COMMA PLUS MINUS MULT DIV EQ NE LT LE GT GE
-%token LSQUARE RSQUARE LPAREN RPAREN LBRACE EOF
+%token LSQUARE RSQUARE LPAREN RPAREN LBRACE UNDERSCORE EOF
 
 %nonassoc IF
 %nonassoc ELSE
@@ -107,9 +132,19 @@ expr:
       {
           ELetRec ($2, $4, $6)
       }
-    | IMAP expr BAR expr LBRACE gen_exprs
+    | IMAP expr inner_frame LBRACE gen_exprs
       {
-          EImap ($2, $4, $6)
+          let out_shp = $2 in
+          let ge = List.map (fun x ->
+                             match x with
+                             | (FullGen (lb, x, ub), e) ->
+                                     ((lb, x, ub), e)
+                             | (DefGen (x), e) ->
+                                     (* construct gen (out_shp * 0) <= x < out_shp *)
+                                     (mk_full_gen out_shp x, e))
+                             $5
+          in
+          EImap ($2, $3, ge)
       }
     | expr expr %prec fun_Apply
       {
@@ -121,6 +156,16 @@ expr:
       }
     ;
 
+%inline inner_frame:
+    | (* empty *)
+      {
+          EArray ([])
+      }
+    | BAR expr
+      {
+          $2
+      }
+    ;
 
 %inline binary_op:
     | PLUS                   { OpPlus }
@@ -149,8 +194,12 @@ gen_exprs:
 gen:
     expr LE ID LT expr
     {
-        ($1, $3, $5)
+        FullGen ($1, $3, $5)
     }
+    | UNDERSCORE LPAREN ID RPAREN
+      {
+          DefGen ($3)
+      }
     ;
 
 expr_list:
