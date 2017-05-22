@@ -3,7 +3,7 @@ sh .travis-ocaml.sh
 
 eval `opam config env`
 
-export OPAM_PACKAGES='ocamlfind menhir ocamllex ounit'
+export OPAM_PACKAGES='ocamlfind menhir ounit'
 
 # install packages from opam
 opam install -q -y ${OPAM_PACKAGES}
