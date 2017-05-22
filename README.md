@@ -1,5 +1,7 @@
 # Heh
 
+[![Build Status](https://travis-ci.org/ashinkarov/heh.svg?branch=master)](https://travis-ci.org/ashinkarov/heh)
+
 Heh is a functional programming language with a built-in support for infinite arrays.
 The languag is strict, but the infinte structures are lazy.  The language includes three
 built-in higher-order constructs: `imap`, `reduce` and `filter` which make it possible
