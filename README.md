@@ -14,8 +14,7 @@ important static properties that one can observe in Heh.
 Heh makes it possible to write generic programs that do not make distinction between
 arrays and streams.  One can write truly infinity-polymorphic programs:
 ```
-letrec inc = λa.λv.imap (|a|)|[] { mul |a| 0 <= iv < |a|: (a iv) + v in
-inc
+λa.λv.imap |a| { _(iv): (a iv) + v
 ```
 Keep in mind, that the increment function never specifies whether the shape of `a`
 is finite.

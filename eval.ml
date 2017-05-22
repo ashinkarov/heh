@@ -629,8 +629,24 @@ and eval st env e =
             eval st (env_add env var p1) e2
 
     | EImap (e1, e2, ge_lst) ->
-            let (st, p1) = eval st env e1 in
-            let (st, p2) = eval st env e2 in
+            let st, p1 = eval st env e1 in
+            let st, p2 = eval st env e2 in
+            (* force evaluation of the outer shape in case it is an imap.  *)
+            let st = if value_is_imap (st_lookup st p1) then
+                       force_imap_to_array st p1
+                     else
+                       st
+            in
+            let st = if value_is_imap (st_lookup st p2) then
+                       force_imap_to_array st p2
+                     else
+                       st
+            in
+            (* Lookup the pointers again, as their values might have changed
+               after forcing imap evalation.  *)
+            let st, p1 = eval st env e1 in
+            let st, p2 = eval st env e2 in
+
             let shp_out_vec, data_out_vec = value_array_to_pair @@ st_lookup st p1 in
             let st, vg_expr_lst = eval_gen_expr_lst st env shp_out_vec ge_lst in
             let lb = List.map (fun x -> mk_int_value 0) data_out_vec in
@@ -854,6 +870,16 @@ and eval_expr_lst st env lst =
             (st, p :: res)
 
 
+
+and force_imap_to_array st p =
+    let v = st_lookup st p in
+    assert (value_is_imap v);
+    let p_out, p_inner, parts, env = value_imap_to_tuple v in
+    let st, p' = eval_strict_imap st env p_out p_inner parts in
+    let st = st_update st p (st_lookup st p') in
+    st
+
+
 (* evaluate gen-expr list into vgen-expr list  *)
 and eval_gen_expr_lst st env idx_shp_vec ge_lst =
     match ge_lst with
@@ -864,20 +890,51 @@ and eval_gen_expr_lst st env idx_shp_vec ge_lst =
             let st, p2 = eval st env ub in
             let st, shp_p1 = shape st env p1 in
             let st, shp_p2 = shape st env p2 in
+            let _, shp_p1_vec = value_array_to_pair shp_p1 in
+            let _, shp_p2_vec = value_array_to_pair shp_p2 in
             let v1 = st_lookup st p1 in
             let v2 = st_lookup st p2 in
-            if not @@ value_is_array v1 then
-                eval_err @@ sprintf "lower bound of generator `%s' is not array"
-                                    @@ gen_to_str g;
+
             if shp_p1 <> mk_vector idx_shp_vec then
                 eval_err @@ sprintf "wrong shape for lower bound of `%s: %s-element vector expected"
                                     (gen_to_str g) (val_lst_to_str idx_shp_vec);
-            if not (value_is_array v2) then
-                eval_err (sprintf "upper bound of generator `%s' is not array"
-                                  (gen_to_str g));
+
             if shp_p2 <> mk_vector idx_shp_vec then
                 eval_err @@ sprintf "wrong shape for upper bound of `%s: %s-element vector expected"
                                     (gen_to_str g) (val_lst_to_str idx_shp_vec);
+
+            if List.for_all (fun x -> value_num_compare x (mk_ord_value omega) <> -1) shp_p1_vec then
+                 eval_err @@ sprintf "lower bound of generator `%s' is not of finnite shape"
+                                     @@ gen_to_str g;
+
+            if List.for_all (fun x -> value_num_compare x (mk_ord_value omega) <> -1) shp_p2_vec then
+                 eval_err @@ sprintf "upper bound of generator `%s' is not of finnite shape"
+                                     @@ gen_to_str g;
+
+            (* Force evaluation of the lower-bound imap expression into array.  *)
+            let st = if value_is_imap v1 then
+                        force_imap_to_array st p1
+                     else
+                        st
+            in
+
+            (* Force evaluation of the upper-bound imap expression into array.  *)
+            let st = if value_is_imap v2 then
+                        force_imap_to_array st p2
+                     else
+                        st
+            in
+
+            (* Extract these values again, as we might have updated the pointers.  *)
+            let v1 = st_lookup st p1 in
+            let v2 = st_lookup st p2 in
+
+            if not @@ value_is_array v1 then
+                eval_err @@ sprintf "lower bound of generator `%s' is not array"
+                                    @@ gen_to_str g;
+            if not (value_is_array v2) then
+                eval_err (sprintf "upper bound of generator `%s' is not array"
+                                  (gen_to_str g));
             let st, res = eval_gen_expr_lst st env idx_shp_vec tl in
             (st, ((v1, var, v2), EPexpr (e)) :: res)
 
