@@ -1,6 +1,4 @@
 (*
- * ISC License
- *
  * Copyright (c) 2017, Artem Shinkarov <artyom.shinkaroff@gmail.com>
  *
  * Permission to use, copy, modify, and/or distribute this software for any
