@@ -45,7 +45,6 @@ let error_loc pos msg =
 %nonassoc DOT
 %nonassoc TRUE
 %nonassoc FALSE
-%nonassoc BAR
 %nonassoc INT
 %nonassoc IMAP
 %nonassoc COLON
@@ -59,6 +58,7 @@ let error_loc pos msg =
 %left MULT DIV
 
 %nonassoc LPAREN LSQUARE
+%nonassoc BAR
 
 %left fun_Apply
 
