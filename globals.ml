@@ -28,6 +28,9 @@ let memo_on = ref true
 (* Whether we evaluate imaps of finite shape strictly.  *)
 let finite_imap_strict_on = ref false
 
+(* Whether we print the storage after the result has been evaluated.  *)
+let print_storage_on = ref false
+
 (* The name of the file we parse.  *)
 let fname = ref ""
 
