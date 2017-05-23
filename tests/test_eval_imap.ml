@@ -35,6 +35,7 @@ let test_eval_imap _ =
     assert_equal ~msg:(sprintf "select idx [5] from `%s'" prg02)
                  (st_lookup st p) (mk_int_value 5);
 
+
     (* Out of bound access.  *)
     let try_out_of_bound _ =
         let prg03 =
@@ -66,5 +67,20 @@ let test_eval_imap _ =
                   "`imap [10]|[] { [0] <= iv < [5]: (1), [6] <= iv < [10]: (2)' " ^
                   "do not fill the specified imap range ([0], [10])" in
     assert_raises (EvalFailure err_msg)
-                  try_poor_partitioning
+                  try_poor_partitioning;
+
+    (* Make sure that constant imap can be used in selection.  *)
+    let prg04 = "[44] (imap [1] {_(iv): 0)" in
+    let st, p = eval_prog prg04 in
+    assert_equal ~msg:(sprintf "select with imap as index `%s'" prg04)
+                 (st_lookup st p) (mk_int_value 44);
+
+
+    (* Make sure that imap defining functions works correctly.  *)
+    let prg05 = "((imap [5] {_(iv): \\x.x) [0]) 42" in
+    let st, p = eval_prog prg05 in
+    assert_equal ~msg:(sprintf "imap defining array of functions `%s'" prg05)
+                 (st_lookup st p) (mk_int_value 42)
+
+
 

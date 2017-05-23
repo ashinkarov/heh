@@ -741,13 +741,26 @@ and eval_unary_app st env p_func p_arg1 msg =
 (* Evaluate selection p_obj at p_idx and emit msg in case
    evaluation throws an exception.  *)
 and eval_obj_sel st env p_obj p_idx msg =
-    try
-        eval st
-             (env_add (env_add env "__idx" p_idx) "__obj" p_obj)
-             (EApply (EVar ("__obj"), EVar ("__idx")))
-    with
-        EvalFailure _ ->
-            eval_err msg
+    (* If we define an imap like this:
+          imap [5] { _(iv): \x.x
+       then we shall not make selection into a function, as it would
+       be interpreted as function application, which is not we want.
+       Instead, for scalar shapes, we want to simply returnt the object.  *)
+    let st, shp_obj = shape st env p_obj in
+    let idx_shp, idx_data = value_array_to_pair @@ st_lookup st p_idx in
+    if shp_obj = mk_empty_vector ()
+       && idx_shp = [mk_int_value 0]
+       && idx_data = []
+    then
+        (st, p_obj)
+    else
+        try
+            eval st
+                 (env_add (env_add env "__idx" p_idx) "__obj" p_obj)
+                 (EApply (EVar ("__obj"), EVar ("__idx")))
+        with
+            EvalFailure _ ->
+                eval_err msg
 
 
 and eval_selection st env p1 p2 =
