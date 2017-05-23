@@ -648,10 +648,6 @@ and eval st env e =
                      else
                        st
             in
-            (* Lookup the pointers again, as their values might have changed
-               after forcing imap evalation.  *)
-            let st, p1 = eval st env e1 in
-            let st, p2 = eval st env e2 in
 
             let shp_out_vec, data_out_vec = value_array_to_pair @@ st_lookup st p1 in
             let st, vg_expr_lst = eval_gen_expr_lst st env shp_out_vec ge_lst in
