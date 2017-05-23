@@ -569,10 +569,16 @@ and eval st env e =
     | EApply (e1, e2) ->
             let (st, p1) = eval st env e1 in
             let (st, p2) = eval st env e2 in
+            (*printf "--[eval-app/selection] `%s' `%s'\n"
+                   (value_to_str @@ st_lookup st p1) (value_to_str @@ st_lookup st p2);*)
             if value_is_selectable (st_lookup st p1) then
             begin
-                (*printf "--[eval-selection] `%s' `%s'\n"
-                       (value_to_str @@ st_lookup st p1) (value_to_str @@ st_lookup st p2);*)
+                (* force evaluation of the index if it is an imap.  *)
+                let st = if value_is_imap (st_lookup st p2) then
+                           force_imap_to_array st p2
+                         else
+                           st
+                in
                 let st, shp_p1 = shape st env p1 in
                 let st, shp_p2 = shape st env p2 in
                 let (dobj, sobj) = value_array_to_pair shp_p1 in
@@ -581,8 +587,8 @@ and eval st env e =
 
                 (* Check that the index is an array.  *)
                 if not @@ value_is_array idx_val then
-                    eval_err @@ sprintf "the index in `%s' selection must evaluate to an array"
-                                         @@ expr_to_str e;
+                    eval_err @@ sprintf "the index in `%s' selection must evaluate to an array, got `%s' instead"
+                                        (expr_to_str e) (value_to_str idx_val);
 
                 (* Check that shape of the index matches the shape of the object.  *)
                 if dobj <> sidx then
