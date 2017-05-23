@@ -754,6 +754,8 @@ and eval_selection st env p1 p2 =
     let v1 = st_lookup st p1 in
     let idx_shp_vec, idx_data_vec = value_array_to_pair (st_lookup st p2) in
     match v1 with
+    | VTrue
+    | VFalse
     | VNum (_) ->
             (st, p1)
     | VArray (shp_vec, data_vec) ->

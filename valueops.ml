@@ -59,7 +59,11 @@ let value_is_filter v =
 
 let value_is_selectable v =
     match v with
+    (* Constants with shape [] can be selected at index [].  *)
+    | VTrue
+    | VFalse
     | VNum (_)
+    (* Array, imap, filter.  *)
     | VArray (_, _)
     | VImap (_, _, _, _)
     | VFilter (_, _, _) -> true
