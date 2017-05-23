@@ -1,0 +1,17 @@
+; This example shows how to define a `cons' function
+
+; helper functions
+letrec vecminus = \x.\y. imap |x| {_(iv): (x iv) - (y iv) in
+letrec vecplus = \x.\y. imap |x| {_(iv): (x iv) + (y iv) in
+
+
+letrec cons = \a.\b. imap (vecplus [1] |b|)
+                          { [0] <= iv < [1]: a,
+                            [1] <= iv < (vecplus [1] |b|): b (vecminus iv [1])
+
+in
+
+
+; test application of the function
+letrec a = cons 1 (imap [omega] { _(iv): iv [0]) in
+(a [0]) + (a [1]) + (a [2])

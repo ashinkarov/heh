@@ -1,0 +1,52 @@
+; This example demonstrates that it is possible to make a
+; literal translation of Haskell definition of ++ operation
+; into Heh.
+;
+; Haskell definition of ++:
+; (++) []     ys = ys
+; (++) (x:xs) ys = x : xs ++ ys
+;
+
+; Helper functions
+letrec vecminus = \x.\y. imap |x| {_(iv): (x iv) - (y iv) in
+letrec vecplus = \x.\y. imap |x| {_(iv): (x iv) + (y iv) in
+
+letrec veceq = \x.\y. reduce (\x.\y. if x then y else x)
+                             true
+                             (imap |x| {_(iv): (x iv) = (y iv)) in
+
+
+letrec head = \a.a [0] in
+
+letrec tail = \a.imap (vecminus |a| [1]) {_(iv): a (vecplus [1] iv) in
+
+letrec cons = \a.\b. imap (vecplus [1] |b|)
+                          { [0] <= iv < [1]: a,
+                            [1] <= iv < (vecplus [1] |b|): b (vecminus iv [1]) in
+
+; Keep in mind though, that such a definition is problematic in case
+; when the first argument of the append is infinite.
+; Consider the following case:
+;
+;    append (imap [omega] {_(iv): iv [0]) [1])
+;
+; As functions in Heh are strict, append will carry on recursively
+; unrolling the first argument, until its shape goes down to zero,
+; which unfortunately in the infinite case will never happen.
+
+letrec append = \a.\b. if veceq |a| [0] then
+                           b
+                       else
+                           cons (head a) (append (tail a) b) in
+
+; To solve this problem, we need to formulate this as transfinite
+; recursion:
+
+
+; Application example
+; append [1,2,3] [4,5,6]
+(append [10,20,30] (imap [omega] {_(iv): iv [0])) [1]
+
+; This should fail
+; (append (imap [omega] {_(iv): iv [0]) [1])
+

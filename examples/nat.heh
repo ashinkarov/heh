@@ -1,0 +1,27 @@
+; This example shows how we can express recursively-defined list of
+; natural numbers.
+
+
+; Helper functions
+letrec vecminus = \x.\y. imap |x| {_(iv): (x iv) - (y iv) in
+
+
+; This is a direct transliteration of the following Haskell definition
+;
+;     nat = 0 : map (+1) nat
+;
+; NOTE: complexity of selections into such a structure is O(n);
+;       the imap will memoize the elements, but when the first
+;       element is selected, this will driver recursion down to
+;       index [0].  This means that this definition does not work
+;       for transfinite arrays, as any selection beyond omega will
+;       make the evaluation to diverge.
+letrec nat_haskell = imap [omega]
+                          { [0] <= iv < [1]:     0,
+                            [1] <= iv < [omega]: (nat_haskell (vecminus iv [1])) + 1 in
+
+letrec nat = imap [omega]
+                  {_(iv): iv [0] in
+
+; Application example
+(nat_haskell [42]) + (nat [42])

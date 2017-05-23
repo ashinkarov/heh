@@ -1,0 +1,17 @@
+; This example demonstrates how to write an append function
+; that works correctly in finite and infinite cases.
+
+; Helper functions
+letrec vecminus = \x.\y. imap |x| {_(iv): (x iv) - (y iv) in
+letrec vecplus = \x.\y. imap |x| {_(iv): (x iv) + (y iv) in
+
+letrec append = \a.\b. imap (vecplus |a| (|b|))
+                            { [0] <= iv < |a|:               a iv,
+                              |a| <= iv < (vecplus |a| (|b|)): b (vecminus iv |a|) in
+
+; Application examples:
+;
+; (append [1,2,3] [4,5,6]) [3]
+; (append (imap [omega+3] {_(iv): iv [0])  [4,5,6]) [3]
+(append [1,2,3] (imap [omega+3] {_(iv): iv [0])) [4]
+

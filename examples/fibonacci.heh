@@ -1,0 +1,14 @@
+; This example demonstrates how to write a Fibonacci sequence in data
+; in Heh.
+
+; Helper functions
+letrec vecminus = \x.\y. imap |x| {_(iv): (x iv) - (y iv) in
+
+
+letrec fib = imap [omega]
+                  { [0] <= iv < [1]:      0,
+                    [1] <= iv < [2]:      1,
+                    [2] <= iv < [omega]:  (fib (vecminus iv [1])) + (fib (vecminus iv [2])) in
+
+; Application example
+fib [7]

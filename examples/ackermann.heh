@@ -1,0 +1,39 @@
+; This program implements Ackermann function in data.
+; See https://en.wikipedia.org/wiki/Ackermann_function for the definition.
+;
+
+; A user-defined conjunction
+letrec and = \e1.\e2. if e1 then e2 else e1 in
+
+; A recursive array of size [omega,omega] where elements at index [m,n]
+; correspond to the value of ackerman m n.
+letrec ack = imap [omega,omega]
+             { [0,0] <= iv < [omega, omega]:
+                   ; Local bindings
+                   letrec m = iv [0] in
+                   letrec n = iv [1] in
+
+                   ; Actual definition
+                   if m = 0 then
+                      n+1
+                   else if and (m > 0) (n = 0) then
+                      ack [m-1, 1]
+                   else
+                      ack [m-1, ack [m,n-1]]
+in
+    ; Here we just evaluate it at a random index.
+    ; NOTE: don't use indexes larger than [3,4] as
+    ; it will take a *long* time to compute.
+    ack [3,3]
+
+; Here are few values for the function.
+;
+; +-----+----+----+----+----+-----+
+; | m\n | 0  | 1  | 2  | 3  | 4   |
+; +-----+----+----+----+----+-----+
+; |  0  | 1  | 2  | 3  | 4  | 5   |
+; |  1  | 2  | 3  | 4  | 5  | 6   |
+; |  2  | 3  | 5  | 7  | 9  | 11  |
+; |  3  | 5  | 13 | 29 | 61 | 125 |
+; +-----+----+----+----+----+-----+
+;

@@ -1,0 +1,65 @@
+; This example demonstrates how to write the game of life in
+; an infinity-polymorphic style.
+
+
+; Helper functions
+letrec or  = λa.λb.if a then a else b in
+letrec and = λa.λb.if a then b else a in
+
+letrec arrayminus = λx.λy. imap |x| {_(iv): (x iv) - (y iv) in
+letrec arrayplus = λx.λy. imap |x| {_(iv): (x iv) + (y iv) in
+
+letrec arrayeq = λx.λy. imap |x| {_(iv): (x iv) = (y iv) in
+letrec arrayge = λx.λy. imap |x| {_(iv): (x iv) >= (y iv) in
+letrec arraylt = λx.λy. imap |x| {_(iv): (x iv) < (y iv) in
+
+letrec arrayany = λa.reduce (or) (false) a in
+
+letrec arraygen = λs.λv.imap s {_(iv): v in
+
+letrec se  = λv.λa.imap |a| {_(iv):
+                             if arrayany (arrayge (arrayplus iv v) |a|) then
+                                 0
+                             else
+                                 a (arrayplus iv v) in
+
+letrec nw  = λv.λa. imap |a| {_(iv):
+                             if arrayany (arraylt iv v) then
+                                 0
+                             else
+                                 a (arrayminus iv v) in
+
+letrec gol_step = λa.
+    ; Compute an array of partial function applications that will compute
+    ; neighbours of the cell.
+    letrec F = [nw [1,1], nw [1,0], nw [0,1], λx. nw [1,0] (se [0,1] x),
+                se [0,1], se [1,0], se [1,1], λx. se [1,0] (nw [0,1] x)] in
+
+    ; Compute an imap where element at [i,j] contains the number of
+    ; neighbours of (a [i, j]).
+    letrec c = (reduce (λf.λg.λx.arrayplus (f x) (g x)) (λx.arraygen |a| 0) F) a in
+
+    imap |a| {_(iv):
+              if or (and ((c iv) = 2) ((a iv) = 1))
+                    ((c iv) = 3)
+              then
+                 1
+              else
+                 0
+
+in
+
+; any (veclt [1,2,3] [3,1,2])
+letrec A =
+    [
+        [0,0,0,0,0],
+        [0,0,1,0,0],
+        [0,0,1,0,0],
+        [0,0,1,0,0],
+        [0,0,0,0,0]
+    ]
+in
+
+; Application
+letrec A1 = gol_step A in
+(A1 [2,1]) + (A1 [2,2]) + (A1 [2,3])
