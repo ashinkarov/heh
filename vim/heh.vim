@@ -2,7 +2,7 @@
 " Language:     HEH
 " Filenames:    *.heh
 " Maintainers:  Artem Shinkarov <artyom.shinkaroff@gmail.com>
-" URL:          FIXME
+" URL:          https://raw.githubusercontent.com/ashinkarov/heh/master/vim/heh.vim
 " Last Change:  2017-05-24
 
 " quit when a syntax file was already loaded
