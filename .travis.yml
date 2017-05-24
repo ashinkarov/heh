@@ -3,6 +3,9 @@ sudo: required
 script: bash -ex .travis-ci.sh
 os:
   - linux
-  - osx
+# During the last build OSX build failed for a weird reason
+# Something to do with downloading the right version of ocaml.
+# Disabling for now, invnestigate it later.
+#  - osx
 env:
 - OCAML_VERSION=4.04
