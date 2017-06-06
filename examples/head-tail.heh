@@ -3,17 +3,22 @@
 
 
 ; helper functions
-letrec vecminus = \x.\y. imap |x| {_(iv): (x iv) - (y iv) in
-letrec vecplus = \x.\y. imap |x| {_(iv): (x iv) + (y iv) in
+letrec vecminus = \x.\y. imap |x| {_(iv): x.iv - y.iv in
+letrec vecplus = \x.\y. imap |x| {_(iv): x.iv + y.iv in
 
 
-letrec head = \a.a [0] in
+letrec head = \a.a.[0] in
+
+letrec tail = \a.imap (vecminus |a| [1]) {_(iv): a.(vecplus [1] iv) in
 
 
-letrec tail = \a.imap (vecminus |a| [1]) {_(iv): a (vecplus [1] iv) in
+; A few examples:
+if (tail [1,2,3,4]).[2] <> 4 then
+    [false]
 
+else if head (tail (tail (imap [omega] {_(iv): iv.[0]))) <> 2 then
+    [false, false]
 
-; just a test applications
-; (tail [1,2,3,4]) [2]
-head (tail (tail (imap [omega] {_(iv): iv [0])))
+else
+    [true]
 

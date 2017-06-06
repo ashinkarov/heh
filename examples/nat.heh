@@ -3,7 +3,7 @@
 
 
 ; Helper functions
-letrec vecminus = \x.\y. imap |x| {_(iv): (x iv) - (y iv) in
+letrec vecminus = \x.\y. imap |x| {_(iv): (x.iv) - (y.iv) in
 
 
 ; This is a direct transliteration of the following Haskell definition
@@ -18,10 +18,10 @@ letrec vecminus = \x.\y. imap |x| {_(iv): (x iv) - (y iv) in
 ;       make the evaluation to diverge.
 letrec nat_haskell = imap [omega]
                           { [0] <= iv < [1]:     0,
-                            [1] <= iv < [omega]: (nat_haskell (vecminus iv [1])) + 1 in
+                            [1] <= iv < [omega]: nat_haskell.(vecminus iv [1]) + 1 in
 
 letrec nat = imap [omega]
-                  {_(iv): iv [0] in
+                  {_(iv): iv.[0] in
 
 ; Application example
-(nat_haskell [42]) + (nat [42])
+(nat_haskell.[42]) + (nat.[42])

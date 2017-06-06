@@ -1,9 +1,9 @@
 ; An example that defines the function `drop'.
 
 ; helper functions
-letrec vecminus = \x.\y. imap |x| {_(iv): (x iv) - (y iv) in
-letrec vecplus = \x.\y. imap |x| {_(iv): (x iv) + (y iv) in
+letrec vecminus = \x.\y. imap |x| {_(iv): x.iv - y.iv in
+letrec vecplus = \x.\y. imap |x| {_(iv): x.iv + y.iv in
 
-letrec drop = \shp.\a.imap (vecminus |a| shp) {_(iv): a (vecplus shp iv) in
+letrec drop = \shp.\a.imap (vecminus |a| shp) {_(iv): a.(vecplus shp iv) in
 
-(drop [omega]  (imap [omega + 3] {_(iv): iv [0])) [1]
+(drop [omega] (imap [omega + 3] {_(iv): iv.[0])).[1]
