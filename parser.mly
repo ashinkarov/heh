@@ -44,7 +44,7 @@ let mk_full_gen shp x =
                            EUnary (OpShape, EVar ("x"))),
 
                           EBinOp (OpMult,
-                                  EApply (EVar ("x"), EVar ("iv")),
+                                  ESel (EVar ("x"), EVar ("iv")),
                                   ENum (zero)))]))
     in
         (EApply (mul_shp_zero, shp),
@@ -65,7 +65,7 @@ let mk_full_gen shp x =
 %nonassoc ISLIM
 %nonassoc LETREC
 %nonassoc LAMBDA
-%nonassoc DOT
+%nonassoc fun_Abstr
 %nonassoc TRUE
 %nonassoc FALSE
 %nonassoc INT
@@ -83,6 +83,7 @@ let mk_full_gen shp x =
 %nonassoc LPAREN LSQUARE
 %nonassoc BAR
 
+%left DOT
 %left fun_Apply
 
 %start prog
@@ -116,7 +117,7 @@ expr:
       {
           EUnary (OpShape, $2)
       }
-    | LAMBDA ID DOT expr
+    | LAMBDA ID DOT expr %prec fun_Abstr
       {
           ELambda ($2, $4)
       }
@@ -145,6 +146,10 @@ expr:
                              $5
           in
           EImap ($2, $3, ge)
+      }
+    | expr DOT expr
+      {
+          ESel ($1, $3)
       }
     | expr expr %prec fun_Apply
       {

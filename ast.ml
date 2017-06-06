@@ -30,6 +30,7 @@ type expr =
 
     | ELambda of string * expr
     | EApply of expr * expr
+    | ESel of expr * expr
 
     | ECond of expr * expr * expr
 

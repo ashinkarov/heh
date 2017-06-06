@@ -11,6 +11,7 @@ SRC := ast.ml \
        env.ml \
        eval.ml \
        globals.ml \
+       traverse.ml \
        print.ml
 
 TEST_SRC := \

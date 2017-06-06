@@ -90,6 +90,8 @@ and expr_to_str e =
                     (expr_to_str e1) (expr_to_str e2) (expr_to_str e3)
     | EApply (e1, e2) ->
             sprintf "((%s) (%s))" (expr_to_str e1) (expr_to_str e2)
+    | ESel (e1, e2) ->
+            sprintf "((%s).(%s))" (expr_to_str e1) (expr_to_str e2)
     | ELambda (x, e1) ->
             sprintf "λ%s.(%s)" x (expr_to_str e1)
     | EBinOp (bop, e1, e2) ->

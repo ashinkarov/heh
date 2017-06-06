@@ -26,6 +26,15 @@ open Printf
 
 exception EvalFailure of string
 
+type lexi_iterator =
+    | Nxt of value list
+    | Done
+
+let get_iterator_idx it =
+    match it with
+    | Nxt (lst) -> lst
+    | _ -> failwith "get_iterator_idx"
+
 (* A global variable to generate unique names of pointers.
    XXX Shall we move this to globals or make it module-local? *)
 let ptr_count = ref 0
@@ -126,14 +135,14 @@ let idx_to_offset shp idx =
 
 
 
-let rec array_element_type_finite st ptrlst =
+(*let rec array_element_type_finite st ptrlst =
     match ptrlst with
     | [] -> true
     | p :: tl -> let v = st_lookup st p in
                  match v with
                  | VImap (_, _, _, _) -> false
                  | VFilter (_, _, _) -> false
-                 | _ -> array_element_type_finite st tl
+                 | _ -> array_element_type_finite st tl*)
 
 
 let ptr_binop st op p1 p2 =
@@ -201,11 +210,11 @@ let part_within_bounds lb ub plb pub =
     && value_num_vec_le lb pub && value_num_vec_le pub ub
 
 
-(* Check if two partitons (p1_top, p1_bot) and (p2_top, p2_bot) intersect.
-   The type of p1_top, p1_bot, p2_top, p2_bot is list of values.
+(* Check if two partitons (p1_lb, p1_ub) and (p2_lb, p2_ub) intersect.
+   The type of p1_lb, p1_ub, p2_lb, p2_ub is list of values.
    The function returns option type with the intersection area in case
    partitions do intersect.  *)
-let part_intersect p1_top p1_bot p2_top p2_bot =
+let part_intersect p1_lb p1_ub p2_lb p2_ub =
     let max a b = if value_num_compare a b = 1 then a else b
     in
     let min a b = if value_num_compare a b = -1 then a else b
@@ -215,22 +224,22 @@ let part_intersect p1_top p1_bot p2_top p2_bot =
     let vec_elem_min v1 v2 = List.map2 (fun x y -> min x y) v1 v2
     in
 
-    let maxtop = vec_elem_max p1_top p2_top in
-    let minbot = vec_elem_min p1_bot p2_bot in
-    (*printf "--[part_intersect] maxtop = [%s], minbot = [%s]\n"
-           (val_lst_to_str maxtop) (val_lst_to_str minbot) ;
+    let maxlb = vec_elem_max p1_lb p2_lb in
+    let minub = vec_elem_min p1_ub p2_ub in
+    (*printf "--[part_intersect] maxlb = [%s], minub = [%s]\n"
+           (val_lst_to_str maxlb) (val_lst_to_str minub) ;
 
     printf "--[part_intersect] ([%s], [%s]) and ([%s], [%s]) "
-           (val_lst_to_str p1_top) (val_lst_to_str p1_bot)
-           (val_lst_to_str p2_top) (val_lst_to_str p2_bot);*)
-    if value_num_vec_lt maxtop minbot
+           (val_lst_to_str p1_lb) (val_lst_to_str p1_ub)
+           (val_lst_to_str p2_lb) (val_lst_to_str p2_ub);*)
+    if value_num_vec_lt maxlb minub
        (* If the intersected area lies within both partitions.  *)
-       && part_within_bounds p1_top p1_bot maxtop minbot
-       && part_within_bounds p2_top p2_bot maxtop minbot
+       && part_within_bounds p1_lb p1_ub maxlb minub
+       && part_within_bounds p2_lb p2_ub maxlb minub
     then
     begin
         (*printf "do intersect\n";*)
-        Some ((maxtop, minbot))
+        Some ((maxlb, minub))
     end
     else
     begin
@@ -405,14 +414,18 @@ let lexi_next v lb ub =
         | _ -> failwith "lexi_next"
     in
 
-    (* For the "last" index (ub-1) we just increase the last element by one.  *)
-    if List.map (fun x -> value_num_add x @@ mk_int_value 1) v = ub then
-        let vl, _ = list_split v (List.length v - 1) in
-        let _, ubr = list_split ub (List.length ub - 1) in
-        List.append vl ubr
-    else
-        List.rev @@
-        _upd (List.rev v) (List.rev lb) (List.rev ub) @@ mk_int_value 1
+    match v with
+    | Nxt (lst) ->
+            if lst = [] then
+                Done
+            (* For the "last" index (ub-1) we just increase the last element by one.  *)
+            else if List.map (fun x -> value_num_add x @@ mk_int_value 1) lst = ub then
+                Done
+            else
+                Nxt(List.rev @@
+                    _upd (List.rev lst) (List.rev lb) (List.rev ub) (mk_int_value 1))
+    | Done ->
+            failwith "calling lexi_next with Done iterator"
 
 let rec shape st env p =
     match st_lookup st p with
@@ -450,6 +463,8 @@ let rec shape st env p =
                       | _ -> eval_err @@ sprintf "invalid shape of object in filter `%s'"
                                                  @@ value_to_str @@ st_lookup st p
             in
+            (* The shape of a filter value can be finite, in case
+               we are in the process of forcing it.  *)
             if compare o omega = -1 then
                 let st, p = force_strict_filter st env p in
                 shape st env p
@@ -547,9 +562,9 @@ and eval st env e =
             if not shp_valid_p then
                 eval_err @@ sprintf "elements of the array `%s' are of different shape"
                             @@ expr_to_str e;
-            if not @@ array_element_type_finite st ptrlst then
-                eval_err @@ sprintf "elements of the array `%s' have imap/filters"
-                            @@ expr_to_str e;
+            let st = List.fold_left (fun st p ->
+                                     force_obj_to_array st env p)
+                                    st ptrlst in
             (* get the data vector of the shape of the first element.  *)
             let st, shp_vec = ptr_list_fst_shape st env ptrlst in
             let shp = List.append [mk_int_value (List.length ptrlst)] shp_vec in
@@ -566,46 +581,46 @@ and eval st env e =
     | ELambda (_, _) ->
             add_fresh_val_as_result st @@ mk_closure_value e env
 
+    | ESel (e1, e2) ->
+            let (st, p1) = eval st env e1 in
+            let (st, p2) = eval st env e2 in
+            (* force evaluation of the index if it is an imap.  *)
+            let st = if value_is_imap (st_lookup st p2) then
+                       force_imap_to_array st p2
+                     else
+                       st
+            in
+            let st, shp_p1 = shape st env p1 in
+            let st, shp_p2 = shape st env p2 in
+            let (dobj, sobj) = value_array_to_pair shp_p1 in
+            let (didx, sidx) = value_array_to_pair shp_p2 in
+            let idx_val = st_lookup st p2 in
+
+            (* Check that the index is an array.  *)
+            if not @@ value_is_array idx_val then
+                eval_err @@ sprintf "the index in `%s' selection must evaluate to an array, got `%s' instead"
+                                    (expr_to_str e) (value_to_str idx_val);
+
+            (* Check that shape of the index matches the shape of the object.  *)
+            if dobj <> sidx then
+                eval_err @@ sprintf "shapes of lhs and index do not match in `%s' selection [%s] <> [%s]"
+                                    (expr_to_str e) (val_lst_to_str dobj) (val_lst_to_str sidx);
+
+            (* Check that the index is within the shape.  *)
+            let _, idx_data = value_array_to_pair idx_val in
+            if not @@ value_num_vec_lt idx_data sobj then
+                eval_err @@ sprintf "out of bound access in `%s' selection"
+                                    @@ expr_to_str e;
+
+            eval_selection st env p1 p2
+
     | EApply (e1, e2) ->
             let (st, p1) = eval st env e1 in
             let (st, p2) = eval st env e2 in
             (*printf "--[eval-app/selection] `%s' `%s'\n"
                    (value_to_str @@ st_lookup st p1) (value_to_str @@ st_lookup st p2);*)
-            if value_is_selectable (st_lookup st p1) then
-            begin
-                (* force evaluation of the index if it is an imap.  *)
-                let st = if value_is_imap (st_lookup st p2) then
-                           force_imap_to_array st p2
-                         else
-                           st
-                in
-                let st, shp_p1 = shape st env p1 in
-                let st, shp_p2 = shape st env p2 in
-                let (dobj, sobj) = value_array_to_pair shp_p1 in
-                let (didx, sidx) = value_array_to_pair shp_p2 in
-                let idx_val = st_lookup st p2 in
-
-                (* Check that the index is an array.  *)
-                if not @@ value_is_array idx_val then
-                    eval_err @@ sprintf "the index in `%s' selection must evaluate to an array, got `%s' instead"
-                                        (expr_to_str e) (value_to_str idx_val);
-
-                (* Check that shape of the index matches the shape of the object.  *)
-                if dobj <> sidx then
-                    eval_err @@ sprintf "shapes of lhs and index do not match in `%s' selection [%s] <> [%s]"
-                                        (expr_to_str e) (val_lst_to_str dobj) (val_lst_to_str sidx);
-
-                (* Check that the index is within the shape.  *)
-                let _, idx_data = value_array_to_pair idx_val in
-                if not @@ value_num_vec_lt idx_data sobj then
-                    eval_err @@ sprintf "out of bound access in `%s' selection"
-                                        @@ expr_to_str e;
-
-                eval_selection st env p1 p2
-            end
-            else
-                let var, body, env' = value_closure_to_triple (st_lookup st p1) in
-                eval st (env_add env' var p2) body
+            let var, body, env' = value_closure_to_triple (st_lookup st p1) in
+            eval st (env_add env' var p2) body
 
     | EBinOp (op, e1, e2) ->
             let (st, p1) = eval st env e1 in
@@ -661,16 +676,14 @@ and eval st env e =
                                         if value_num_vec_lt lb_vec ub_vec then
                                             [((lb, x, ub), ep)]
                                         else begin
+                                            (* XXX we can put this check under a flag.
                                             eval_warn @@
                                             sprintf "partition ([%s], [%s]) of the imap `%s' is empty"
                                                     (val_lst_to_str lb_vec) (val_lst_to_str ub_vec)
-                                                    (expr_to_str e);
+                                                    (expr_to_str e);*)
                                             []
                                         end) vg_expr_lst in
-            if not @@ check_parts_form_partition
-                            lb
-                            data_out_vec
-                            vg_expr_lst then
+            if not @@ check_parts_form_partition lb data_out_vec vg_expr_lst then
                 eval_err @@ sprintf "partitions of `%s' do not fill the specified imap range ([%s], [%s])"
                                     (expr_to_str e) (val_lst_to_str lb) (val_lst_to_str data_out_vec);
             if check_parts_intersect vg_expr_lst then
@@ -681,9 +694,10 @@ and eval st env e =
             if  !finite_imap_strict_on
                 && List.for_all (fun x -> (value_num_compare x (VNum omega)) = -1)
                                   (List.append data_out_vec data_in_vec) then
-                (* FIXME It is not good enough to check that the shape is finite,
-                     we would also need to check that the structure is not
-                     recursive.  *)
+                (* NOTE If imap is recursive, we won't be able to evaluate it strictly,
+                        as we have to finish evaluation of the enclosing letrec
+                        firs, otherwise we won't have a binding to the recursive
+                        pointer in the environment.  *)
                 eval_strict_imap st env p1 p2 vg_expr_lst
             else
                 add_fresh_val_as_result st @@ mk_imap_value p1 p2 vg_expr_lst env
@@ -695,13 +709,6 @@ and eval st env e =
             if not @@ value_is_closure @@ st_lookup st pfunc then
                 eval_err @@ sprintf "expected function as a first argument of `%s'"
                                     @@ expr_to_str e;
-            if not @@ value_is_selectable @@ st_lookup st pa then
-                eval_err @@ sprintf "expected selectable object as third argument of `%s'"
-                                    @@ expr_to_str e;
-            let st, dim = dimension st env pa in
-            if dim = zero then
-                eval_err @@ sprintf "expected dimension of third argument of `%s' to be greater than 0"
-                                    @@ expr_to_str e;
             eval_reduce st env pfunc pneut pa
 
     | EFilter (func, obj) ->
@@ -710,13 +717,23 @@ and eval st env e =
             if not @@ value_is_closure @@ st_lookup st pfunc then
                 eval_err @@ sprintf "expected function as a first argument of `%s'"
                                     @@ expr_to_str e;
-            if not @@ value_is_selectable @@ st_lookup st pobj then
-                eval_err @@ sprintf "expected selectable object as a second argument of `%s'"
-                                    @@ expr_to_str e;
-            (* TODO Check that dimensionality of the index is 1.  *)
 
-            (* FIXME if shape of obj is finite, then evaluate filter to array.  *)
-            add_fresh_val_as_result st @@ mk_filter_value pfunc pobj []
+            let st, shp = shape st env pobj in
+            let _, shp_vec = value_array_to_pair shp in
+            let st, dim = dimension st env pobj in
+            if dim <> one then
+                eval_err @@ sprintf "expected dimension of the second argument of `%s' to be 1"
+                                    @@ expr_to_str e;
+
+            let st, p = add_fresh_val_as_result st @@ mk_filter_value pfunc pobj [] in
+            if List.for_all (fun x ->
+                             value_num_compare x (mk_ord_value omega) = -1)
+                            shp_vec
+            then
+                let st, p = force_strict_filter st env p in
+                (st, p)
+            else
+                (st, p)
 
 
 and eval_bin_app st env p_func p_arg1 p_arg2 msg =
@@ -741,34 +758,22 @@ and eval_unary_app st env p_func p_arg1 msg =
 (* Evaluate selection p_obj at p_idx and emit msg in case
    evaluation throws an exception.  *)
 and eval_obj_sel st env p_obj p_idx msg =
-    (* If we define an imap like this:
-          imap [5] { _(iv): \x.x
-       then we shall not make selection into a function, as it would
-       be interpreted as function application, which is not we want.
-       Instead, for scalar shapes, we want to simply returnt the object.  *)
-    let st, shp_obj = shape st env p_obj in
-    let idx_shp, idx_data = value_array_to_pair @@ st_lookup st p_idx in
-    if shp_obj = mk_empty_vector ()
-       && idx_shp = [mk_int_value 0]
-       && idx_data = []
-    then
-        (st, p_obj)
-    else
-        try
-            eval st
-                 (env_add (env_add env "__idx" p_idx) "__obj" p_obj)
-                 (EApply (EVar ("__obj"), EVar ("__idx")))
-        with
-            EvalFailure _ ->
-                eval_err msg
+    try
+        eval st
+             (env_add (env_add env "__idx" p_idx) "__obj" p_obj)
+             (ESel (EVar ("__obj"), EVar ("__idx")))
+    with
+        EvalFailure _ ->
+            eval_err msg
 
-
+(* Make actual selection assuming that shapes of the object and index match.  *)
 and eval_selection st env p1 p2 =
     let v1 = st_lookup st p1 in
     let idx_shp_vec, idx_data_vec = value_array_to_pair (st_lookup st p2) in
     match v1 with
     | VTrue
     | VFalse
+    | VClosure (_, _)
     | VNum (_) ->
             (st, p1)
     | VArray (shp_vec, data_vec) ->
@@ -813,23 +818,24 @@ and eval_selection st env p1 p2 =
                                     (value_to_str @@ st_lookup st ptr_out) (val_lst_to_str idx_i)
 
     | VFilter (pfunc, pobj, parts) ->
-            let rec filter_step st pobj lb ub idx res n max =
-                if not @@ value_num_vec_lt idx ub then
+            let rec filter_step st pobj lb ub idx_it res n max =
+                if idx_it = Done then
                     eval_err "filter indexing failed"
                 else if List.length res = n+1 then
                     (res, max)
                 else
+                    let idx = get_iterator_idx idx_it in
                     let st, idx_ptr = add_fresh_val_as_result st @@ mk_array_value idx_shp_vec idx in
                     let st, p_el = eval_obj_sel st env pobj idx_ptr
                                                 "filter slection failed" in
                     let st, pbool = eval_unary_app st env pfunc p_el "filter fun app failed" in
                     let vbool = st_lookup st pbool in
                     if value_is_true vbool then
-                        filter_step st pobj lb ub (lexi_next idx lb ub)
+                        filter_step st pobj lb ub (lexi_next idx_it lb ub)
                                                   (List.append res [st_lookup st p_el])
                                                   n (max + 1)
                     else if value_is_false vbool then
-                        filter_step st pobj lb ub (lexi_next idx lb ub)
+                        filter_step st pobj lb ub (lexi_next idx_it lb ub)
                                                   res n (max + 1)
                     else
                         eval_err "true/false expected in function application in filter"
@@ -842,12 +848,16 @@ and eval_selection st env p1 p2 =
 
             let st, obj_shp = shape st env pobj in
             let _, obj_shp_vec = value_array_to_pair obj_shp in
-            (* If obj_shp < omega, then we are dealing with finite filter; force evaluation
+
+            (* We should deal only with the infinite filters now, as finite
+               ones must have been forced to arrays.  *)
+            assert (compare (value_num_to_ord @@ List.hd obj_shp_vec) omega <> -1);
+            (*(* If obj_shp < omega, then we are dealing with finite filter; force evaluation
                of the filter expression into array, and repeat selection.  *)
-            if compare (value_num_to_ord @@ List.hd obj_shp_vec) omega <> -1 then
+            if compare (value_num_to_ord @@ List.hd obj_shp_vec) omega = -1 then
                 let st, p1 = force_strict_filter st env p1 in
                 eval_selection st env p1 p2
-            else
+            else*)
                 (* Split index into (limit_ordinal, nat), where limit ordinal can be also zero.  *)
                 let lim_ord, n = split_ordinal (value_num_to_ord @@ List.hd idx_data_vec) in
 
@@ -859,7 +869,7 @@ and eval_selection st env p1 p2 =
                     else
                         let res, max = filter_step
                                        st pobj [mk_int_value 0] obj_shp_vec
-                                       [mk_ord_value @@ add lim_ord (int_to_ord max)]
+                                       (Nxt ([mk_ord_value @@ add lim_ord (int_to_ord max)]))
                                        val_lst n max in
                         let v = List.nth res n in
                         let st = update_filter_parts st p1 part_idx (lim_ord, res, max) in
@@ -867,13 +877,13 @@ and eval_selection st env p1 p2 =
                 else
                     let res, max = filter_step
                                    st pobj [mk_int_value 0] obj_shp_vec
-                                   [mk_ord_value lim_ord]
+                                   (Nxt ([mk_ord_value lim_ord]))
                                    [] n 0 in
                     let v = List.nth res n in
                     let st = st_update st p1 @@ VFilter (pfunc, pobj, (lim_ord, res, max) :: parts) in
                     add_fresh_val_as_result st v
 
-    | _ -> eval_err "invalid selection object"
+    (*| _ -> eval_err "invalid selection object"*)
 
 (* evaluate a list of expressions propagating storage at every recursive call;
    return a tuple: (last storage, list of pointers)  *)
@@ -886,6 +896,37 @@ and eval_expr_lst st env lst =
             let st, res = eval_expr_lst st env tl in
             (st, p :: res)
 
+
+(* FIXME this is a generic function that can be used instead
+         of force_imap and force_filter.  *)
+and force_obj_to_array st env p =
+    let st, shp_p = shape st env p in
+    let _, shp_vec = value_array_to_pair shp_p in
+    if value_is_array (st_lookup st p) then
+        st
+    else if not @@ List.for_all (fun x ->
+                                 value_num_compare x (mk_ord_value omega) = -1)
+                                shp_vec then
+        eval_err @@ sprintf "forcing elements of `%s' does not terminate"
+                    @@ (value_to_str @@ st_lookup st p)
+    else
+        let lb = List.map (fun x -> mk_int_value 0) shp_vec in
+        let rec _force st idx_it lb ub p res =
+            if idx_it = Done then
+                (st, res)
+            else
+                let idx = get_iterator_idx idx_it in
+                let p_idx = fresh_ptr_name () in
+                let st = st_add st p_idx @@ mk_vector idx in
+                let st, p_el = eval_obj_sel st env p p_idx
+                               @@ sprintf "force_obj_to_array at idx [%s] failed"
+                                  (val_lst_to_str idx) in
+                _force st (lexi_next idx_it lb ub) lb ub p ((st_lookup st p_el) :: res)
+        in
+
+        let idx_it = if value_num_vec_lt lb shp_vec then (Nxt (lb)) else Done in
+        let st, res = _force st idx_it lb shp_vec p [] in
+        st_update st p (VArray (shp_vec, List.rev @@ res))
 
 
 and force_imap_to_array st p =
@@ -979,11 +1020,12 @@ and eval_reduce st env pfunc pneut pa =
                                    (value_to_str v)
                 in reduce_lst st tl p_res'
     in
-    let rec reduce_selectable st lb ub idx p_res =
-        if not @@ value_num_vec_lt idx ub then
+    let rec reduce_selectable st lb ub idx_it p_res =
+        if idx_it = Done then
             (st, p_res)
         else
             (* Make selection at `idx' *)
+            let idx = get_iterator_idx idx_it in
             let p_idx = fresh_ptr_name () in
             let st = st_add st p_idx @@ mk_vector idx in
             let st, p_el = eval_obj_sel st env pa p_idx
@@ -998,7 +1040,7 @@ and eval_reduce st env pfunc pneut pa =
                                    (value_to_str @@ st_lookup st pfunc)
                                    (value_to_str @@ st_lookup st p_res)
                                    (value_to_str @@ st_lookup st p_el)
-            in reduce_selectable st lb ub (lexi_next idx lb ub) p_res'
+            in reduce_selectable st lb ub (lexi_next idx_it lb ub) p_res'
     in
 
     let va = st_lookup st pa in
@@ -1009,7 +1051,9 @@ and eval_reduce st env pfunc pneut pa =
             let st, shp_pa = shape st env pa in
             let _, shp = value_array_to_pair shp_pa in
             let lb = List.map (fun x -> mk_int_value 0) shp in
-            reduce_selectable st lb shp lb pneut
+
+            let idx_it = if value_num_vec_lt lb shp then (Nxt (lb)) else Done in
+            reduce_selectable st lb shp idx_it pneut
 
 
 and eval_strict_imap st env p_out p_inner parts =
@@ -1020,11 +1064,12 @@ and eval_strict_imap st env p_out p_inner parts =
     let in_hash ht ptr =
         try Hashtbl.find ht ptr; true with Not_found -> false
     in
-    let rec eval_idxes st env glb gub idx parts res =
+    let rec eval_idxes st env glb gub idx_it parts res =
         (*printf "--- eval-idxes: idx = [%s]\n" (val_lst_to_str idx);*)
-        if not @@ value_num_vec_lt idx gub then
+        if idx_it = Done then
             res
         else
+            let idx = get_iterator_idx idx_it in
             let idx_o, idx_i = list_split idx (List.length out_v) in
             (*printf "--- eval-idxes: idx_o = [%s], idx_i = [%s]\n"
                    (val_lst_to_str idx_o) (val_lst_to_str idx_i);*)
@@ -1058,12 +1103,14 @@ and eval_strict_imap st env p_out p_inner parts =
                                           (value_to_str @@ st_lookup st ptr_out)
                                           (value_to_str @@ st_lookup st p_idx_i) in
             let v = st_lookup st p_el in
-            eval_idxes st env glb gub (lexi_next idx glb gub) parts (v :: res)
+            eval_idxes st env glb gub (lexi_next idx_it glb gub) parts (v :: res)
 
     in
     let gub = List.append out_v in_v in
     let glb = List.map (fun x -> mk_int_value 0) gub in
-    let data = eval_idxes st env glb gub glb parts [] in
+
+    let idx_it = if value_num_vec_lt glb gub then (Nxt (glb)) else Done in
+    let data = eval_idxes st env glb gub idx_it parts [] in
     add_fresh_val_as_result st (mk_array_value gub @@ List.rev data)
 
 and filter_step_full_part st env pobj pfunc lim_ord idx max res =

@@ -31,6 +31,8 @@ let rec app_to_hof e =
         raise (ImapFailure "filter found with less than two arguments")
     | EApply (e1, e2) ->
         EApply (app_to_hof e1, app_to_hof e2)
+    | ESel (e1, e2) ->
+        ESel (app_to_hof e1, app_to_hof e2)
     | EArray (lst) ->
         EArray (List.map app_to_hof lst)
     | EBinOp (bop, e1, e2) ->
