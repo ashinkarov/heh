@@ -1,0 +1,20 @@
+#! /bin/sh
+
+passed=0
+failed=0
+
+for example in examples/*.heh; do
+    if (./main.native "$example" 2>&1 | grep -q "Fatal error"); then
+        failed=$(expr $failed + 1)
+        echo "[FAIL] $example"
+    else
+        passed=$(expr $passed + 1)
+        echo "[OK]   $example"
+    fi
+done
+
+echo "$passed examples succeeded, $failed caused fatal errors"
+
+if [ ! $failed -eq 0 ]; then
+    exit 1
+fi
