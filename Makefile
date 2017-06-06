@@ -22,6 +22,9 @@ TEST_SRC := \
        tests/test_lexi_next.ml \
        tests/test_eval_reduce.ml \
        tests/test_eval_imap.ml \
+       tests/test_selection.ml \
+       tests/test_array.ml \
+       tests/test_shape.ml \
        tests/test_value.ml
 
 
