@@ -24,7 +24,7 @@ let test_eval_reduce _ =
 
     let prg02 =
         "letrec sum = \\x.\\y.x + y in " ^
-        "letrec a = imap [10]|[] { [0] <= iv < [10]: iv [0] in " ^
+        "letrec a = imap [10]|[] { [0] <= iv < [10]: iv . [0] in " ^
         "reduce sum 0 a"
     in
 
