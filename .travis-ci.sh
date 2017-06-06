@@ -10,4 +10,8 @@ opam install -q -y ${OPAM_PACKAGES}
 
 make
 
+# run the unit tests
 ./test.native
+
+# run all the examples
+./.run-examples
