@@ -8,4 +8,4 @@ os:
 # Disabling for now, invnestigate it later.
 #  - osx
 env:
-- OCAML_VERSION=4.02
+- OCAML_VERSION=4.04
