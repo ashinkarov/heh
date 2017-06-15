@@ -664,6 +664,14 @@ and eval st env e =
                        st
             in
 
+            let v1 = st_lookup st p1 in
+            let v2 = st_lookup st p2 in
+            (* FIXME we want this to be not just an array, but an array of
+                     the right shape.  *)
+            if not @@ value_is_array v1 then
+                eval_err @@
+                sprintf "expected array as outer shape got `%s'"
+                        @@ value_to_str v1;
             let shp_out_vec, data_out_vec = value_array_to_pair @@ st_lookup st p1 in
             let st, vg_expr_lst = eval_gen_expr_lst st env shp_out_vec ge_lst in
             let lb = List.map (fun x -> mk_int_value 0) data_out_vec in
@@ -690,6 +698,12 @@ and eval st env e =
                 eval_err @@ sprintf "partitions of `%s' are not disjoint"
                                     (expr_to_str e);
 
+            (* FIXME we want this to be not just an array, but an array of
+                     the right shape.  *)
+            if not @@ value_is_array v2 then
+                eval_err @@
+                sprintf "expected array as inner shape got `%s'"
+                        @@ value_to_str v2;
             let shp_in_vec, data_in_vec = value_array_to_pair @@ st_lookup st p2 in
             if  !finite_imap_strict_on
                 && List.for_all (fun x -> (value_num_compare x (VNum omega)) = -1)
@@ -763,7 +777,8 @@ and eval_obj_sel st env p_obj p_idx msg =
              (env_add (env_add env "__idx" p_idx) "__obj" p_obj)
              (ESel (EVar ("__obj"), EVar ("__idx")))
     with
-        EvalFailure _ ->
+        EvalFailure m ->
+            printf "error: `%s'\n" m;
             eval_err msg
 
 (* Make actual selection assuming that shapes of the object and index match.  *)
@@ -925,8 +940,8 @@ and force_obj_to_array st env p =
                 let p_idx = fresh_ptr_name () in
                 let st = st_add st p_idx @@ mk_vector idx in
                 let st, p_el = eval_obj_sel st env p p_idx
-                               @@ sprintf "force_obj_to_array at idx [%s] failed"
-                                  (val_lst_to_str idx) in
+                               @@ sprintf "force_obj_to_array (%s).[%s] failed"
+                                  (value_to_str @@ st_lookup st p) (val_lst_to_str idx) in
                 _force st (lexi_next idx_it lb ub) lb ub p ((st_lookup st p_el) :: res)
         in
 
