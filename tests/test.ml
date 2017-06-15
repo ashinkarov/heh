@@ -9,11 +9,12 @@ open Test_value
 open Test_selection
 open Test_array
 open Test_shape
+open Test_force
 
 
 
 let suite =
-    "IMap Lang" >:::
+    "Heh language" >:::
     [
         "Ordinal testsuite" >:::
         [
@@ -34,8 +35,8 @@ let suite =
         ];
         "Value testsuite" >:::
         [
-            "value constants" >:: test_value_const;
-            "value arrays" >:: test_value_array;
+            "value-constants" >:: test_value_const;
+            "value-arrays" >:: test_value_array;
         ];
         "Eval helpers" >:::
         [
@@ -43,14 +44,15 @@ let suite =
         ];
         "Eval progrs" >:::
         [
-            "eval reduce" >:: test_eval_reduce;
-            "eval imap" >:: test_eval_imap;
+            "eval-reduce" >:: test_eval_reduce;
+            "eval-imap" >:: test_eval_imap;
             "test-empty-selection" >:: test_empty_selection;
             "test-expr-selection" >:: test_expr_selection;
             "test-letrec-selection" >:: test_letrec_selection;
             "test-struct-selection" >:: test_struct_selection;
             "test-imm-array" >:: test_imm_array;
             "test-shape" >:: test_shape;
+            "test-force" >:: test_force;
         ];
     ]
 

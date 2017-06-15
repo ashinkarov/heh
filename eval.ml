@@ -149,11 +149,11 @@ let ptr_binop st op p1 p2 =
     let v1 = st_lookup st p1 in
     let v2 = st_lookup st p2 in
     if not @@ value_is_num v1 then
-        eval_err @@ sprintf "attempt to perform binary operation on non-number `%s'"
-                            @@ value_to_str v1;
+        eval_err @@ sprintf "attempt to perform binary operation `%s' on non-number lhs `%s'"
+                            (bop_to_str op) (value_to_str v1);
     if not @@ value_is_num v2 then
-        eval_err @@ sprintf "attempt to perform binary operation on non-number `%s'"
-                            @@ value_to_str v2;
+        eval_err @@ sprintf "attempt to perform binary operation `%s' on non-number rhs `%s'"
+                            (bop_to_str op) (value_to_str v2);
     let o1 = value_num_to_ord v1 in
     let o2 = value_num_to_ord v2 in
     match op with
@@ -902,7 +902,13 @@ and eval_expr_lst st env lst =
 and force_obj_to_array st env p =
     let st, shp_p = shape st env p in
     let _, shp_vec = value_array_to_pair shp_p in
-    if value_is_array (st_lookup st p) then
+    let v = st_lookup st p in
+    if value_is_array v
+       || value_is_num v
+       || value_is_true v
+       || value_is_false v
+       || value_is_closure v
+    then
         st
     else if not @@ List.for_all (fun x ->
                                  value_num_compare x (mk_ord_value omega) = -1)
