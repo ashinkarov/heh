@@ -83,8 +83,8 @@ let mk_full_gen shp x =
 %nonassoc LPAREN LSQUARE
 %nonassoc BAR
 
-%left DOT
 %left fun_Apply
+%left DOT
 
 %start prog
 %type <Ast.expr> prog

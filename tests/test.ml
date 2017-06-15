@@ -10,6 +10,7 @@ open Test_selection
 open Test_array
 open Test_shape
 open Test_force
+open Test_parser
 
 
 
@@ -28,6 +29,10 @@ let suite =
         "Storage testsuite" >:::
         [
             "storage-test" >:: test_storage
+        ];
+        "Parser testsuite" >:::
+        [
+            "parser-tests" >:: test_parser
         ];
         "Env testsuite" >:::
         [

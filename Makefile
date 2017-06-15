@@ -26,6 +26,7 @@ TEST_SRC := \
        tests/test_array.ml \
        tests/test_shape.ml \
        tests/test_force.ml \
+       tests/test_parser.ml \
        tests/test_value.ml
 
 
