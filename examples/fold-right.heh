@@ -1,0 +1,18 @@
+; Here we demonstrate an implementation of fold-rigth
+; on vectors via recursive imap.  Keep in mind, that as
+; this is recursive definition, we lose potential parallelism
+; of the reduce, but we gain control over the order of
+; reduction.
+
+letrec vecinc = \x.imap |x| {_(iv): x.iv + 1 in
+
+
+letrec foldr = \f.\neut.\a.
+               letrec shp = |a| in
+               letrec new_shp = vecinc |a| in
+               letrec res = imap new_shp {
+                            shp <= iv < new_shp: neut,
+                            [0] <= iv < shp:     f (a.iv) (res.(vecinc iv))
+               in res.[0]
+
+in foldr (\x.\y.x+y) 0 [1,2,3,4]

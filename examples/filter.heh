@@ -1,0 +1,52 @@
+; Here we demonstrate how one could implement filter
+; via a recursive imap.  We generate an array of pairs
+; where the first element of a pair is the filtered value
+; at the given position, and the second one is how many
+; elements we have skipped in the argument array.
+; As a result we get an array of the same shape as the
+; argument array, where filtered elements appear in the
+; beginning, and the rest is filled with zeroes.  The length
+; of the `tail' in the result `res' can be computed as
+; res.[(|res|).[0]-1, 1].
+
+letrec vecadd = \x.\y. [x.[0] + y] in
+
+; From the array of pair, select first elements of each pair.
+letrec slice = \a.imap [(|a|).[0]] {_(iv): a.[iv.[0],0] in
+
+letrec xfilter =
+    \f.\a.
+    letrec shp = |a| in
+    letrec res =
+        imap shp|[2]
+        { _(iv):
+            ; The first iteration sets number of skipped elements to 0
+            ; Otherwise the number of skipped elements is taken from
+            ; the iv-1 iteration.
+            letrec dels = if iv.[0] = 0 then 0 else res.[iv.[0]-1,1] in
+
+            ; This is a loop that skips elements up to the point when
+            ; f a.(iv + dels) is true.
+            letrec loop = \dels.
+                          letrec a_iv = vecadd iv dels in
+                          if a_iv.[0] < shp.[0] then
+                              if f (a.a_iv) then
+                                  ; We found the next element in a.
+                                  [a.a_iv, dels]
+                              else
+                                  ; We didn't find one at a.(iv + dels),
+                                  ; so inspect the next one.
+                                  loop (dels + 1)
+                          else
+                              ; We ran out of the elements, so fill the
+                              ; resulting array with some value (zero
+                              ; in this case) and propagate `dels' further.
+                              [0, dels]
+            in loop dels
+    in
+        ; Here we just slice the result, but in principle
+        ; we can do more.
+        slice res
+
+in
+    [xfilter (\x.x > 2) [1,2,3,4]]

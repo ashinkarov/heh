@@ -1,0 +1,63 @@
+; This example demonstrates the ability to write imaps with
+; complex iteration dependencies.  Insert emulates a part of
+; a sorting function, when the element `x' is inserted before
+; the first occurrence of the element that is bigger than `x'
+; when traversing the list left-to-right.
+;
+; That is:
+;    insert 3 [1,2,3]
+;
+; evaluates to [1,2,3,3]
+
+
+
+; Alias for state values.
+letrec found = 1 in
+letrec not_found = 2 in
+
+; Helper functions.
+letrec vecinc = \x.imap |x| {_(iv): x.iv + 1 in
+letrec vecdec = \x.imap |x| {_(iv): x.iv - 1 in
+letrec or = \x.\y.if x then x else y in
+
+; From the array of pair, select first elements of each pair.
+letrec slice = \a.imap [(|a|).[0]] {_(iv): a.[iv.[0],0] in
+
+letrec insert = \x.\a.
+    ; Shape of the argument array.
+    letrec shp = |a| in
+    ; Shape of the new array.
+    letrec shp_new = vecinc (|a|) in
+
+    ; Actual computation
+    letrec s =
+        imap shp_new|[2] {
+            ; First partition cannot look-up states as we start her
+            ; and it cannot have any state yet.
+            [0] <= iv < [1]:
+                if or (iv.[0] = (vecdec shp).[0]) (a.iv >= x) then
+                    [x, found]
+                else
+                    [a.iv, not_found],
+
+            ; When we compute partition at iv=[0] we will compute a
+            ; state, therefore we can look it up.
+            [1] <= iv < shp_new:
+                ; Here we look up which state we are in, and if we haven't
+                ; found the element then:
+                if s.[iv.[0]-1,1] = not_found then
+                    ; Swicht state to `found' if we found the first element
+                    ; that is bigger or equal than `x'
+                    if or (iv.[0] = (vecdec shp).[0]) (a.iv >= x) then
+                        [x, found]
+                    ; Stay in the same state.
+                    else
+                        [a.iv, not_found]
+                ; If we have inserted `x' then we keep inserting a.(prev iv)
+                ; elements, preserving the state.
+                else
+                    [a.(vecdec iv), found]
+        in s
+in
+    ; We wrap this in a constant array to force all the elements.
+    [slice (insert 3 [1,2,4,5,6])]

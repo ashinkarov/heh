@@ -1,0 +1,19 @@
+; Here we demonstrate an implementation of fold-left
+; on vectors via recursive imap.  Keep in mind, that as
+; this is recursive definition, we lose potential parallelism
+; of the reduce, but we gain control over the order of
+; reduction.
+
+letrec vecinc = \x.imap |x| {_(iv): x.iv + 1 in
+letrec vecdec = \x.imap |x| {_(iv): x.iv - 1 in
+
+
+letrec foldl = \f.\neut.\a.
+               letrec shp = |a| in
+               letrec new_shp = vecinc |a| in
+               letrec res = imap new_shp {
+                            [0] <= iv < [1]:     neut,
+                            [1] <= iv < new_shp: f (a.(vecdec iv)) (res.(vecdec iv))
+               in res.shp
+
+in foldl (\x.\y.x+y) 0 [1,2,3,4]
