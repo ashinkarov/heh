@@ -39,7 +39,7 @@ syn region   hehComment start=";" end="$" contains=hehTodo,@Spell
 syn keyword  hehTodo contained TODO FIXME XXX NOTE
 
 
-" let
+" letrec
 syn region   hehEnd matchgroup=hehKeyword start="\<letrec\>" matchgroup=hehKeyword end="\<in\>" contains=ALLBUT,@hehContained
 
 " if
@@ -63,9 +63,6 @@ syn match    hehNumber	      "\<ω\>"
 " Synchronization
 syn sync minlines=20
 syn sync maxlines=500
-
-syn sync match hehEndSync     grouphere  hehEnd     "\<begin\>"
-syn sync match hehEndSync     grouphere  hehEnd     "\<imap\>"
 
 
 " Define the default highlighting.
