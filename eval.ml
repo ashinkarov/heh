@@ -160,7 +160,8 @@ let ptr_binop st op p1 p2 =
     | OpPlus -> VNum (add o1 o2)
     | OpMult -> VNum (mult o1 o2)
     | OpMinus -> VNum (sub o1 o2)
-    | OpDiv -> eval_err "ordinal division not yet implemented"
+    | OpDiv -> VNum (div o1 o2)
+    | OpMod -> VNum (rem o1 o2)
     | OpEq -> if compare o1 o2 = 0 then VTrue else VFalse
     | OpNe -> if compare o1 o2 <> 0 then VTrue else VFalse
     | OpLt -> if compare o1 o2 = -1 then VTrue else VFalse
@@ -687,7 +688,7 @@ and eval st env e =
                                             (* XXX we can put this check under a flag.
                                             eval_warn @@
                                             sprintf "partition ([%s], [%s]) of the imap `%s' is empty"
-                                                    (val_lst_to_str lb_vec) (val_lst_to_str ub_vec)
+                                                    al_lst_to_str lb_vec) (val_lst_to_str ub_vec)
                                                     (expr_to_str e);*)
                                             []
                                         end) vg_expr_lst in

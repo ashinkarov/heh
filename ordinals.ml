@@ -177,4 +177,23 @@ let rec sub o1 o2 =
     else
         sub (List.tl o1) (List.tl o2)
 
+let rec divmod o1 o2 =
+    if o2 = zero then
+        raise @@ OrdinalFailure "Division by zero"
+    else if compare o1 o2 = -1 then
+        (zero, o1)
+    else
+        let e = sub (List.hd o1).exp (List.hd o2).exp in
+        let c = (List.hd o1).coeff / (List.hd o1).coeff in
+        let d1 = [{exp = e; coeff = c}] in
+        let res, rem = divmod (sub o1 (mult o2 d1)) o2 in
+        (add d1 res, rem)
+
+let div o1 o2 =
+    let res, rem = divmod o1 o2 in
+    res
+
+let rem o1 o2 =
+    let res, rem = divmod o1 o2 in
+    rem
 

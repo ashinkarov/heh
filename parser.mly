@@ -56,7 +56,7 @@ let mk_full_gen shp x =
 %token <int> INT
 %token <string> ID
 %token TRUE FALSE IF THEN ELSE LETREC IN OMEGA ISLIM LAMBDA IMAP
-%token BAR DOT COLON COMMA PLUS MINUS MULT DIV EQ NE LT LE GT GE
+%token BAR DOT COLON COMMA PLUS MINUS MULT DIV MOD EQ NE LT LE GT GE
 %token LSQUARE RSQUARE LPAREN RPAREN LBRACE UNDERSCORE EOF
 
 %nonassoc IF
@@ -78,7 +78,7 @@ let mk_full_gen shp x =
 
 %left EQ NE LT LE GT GE
 %left PLUS MINUS
-%left MULT DIV
+%left MULT DIV MOD
 
 %nonassoc LPAREN LSQUARE
 %nonassoc BAR
@@ -177,6 +177,7 @@ expr:
     | MINUS                  { OpMinus }
     | MULT                   { OpMult }
     | DIV                    { OpDiv }
+    | MOD                    { OpMod }
     | LT                     { OpLt }
     | GT                     { OpGt }
     | EQ                     { OpEq }

@@ -22,6 +22,7 @@ let suite =
             "ordinal-comparison" >:: test_ord_comparison;
             "ordinal-addition" >:: test_ord_addition;
             "ordinal-multiplication" >:: test_ord_mult;
+            "ordinal-divmod" >:: test_ord_divmod;
             "ordinal-subtraction" >:: test_ord_sub;
             "ordinal-islimit" >:: test_ord_islimit;
             "ordinal-printing" >:: test_ord_print;

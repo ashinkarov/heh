@@ -113,4 +113,27 @@ let test_ord_islimit _ =
     assert_equal ~msg:"islim w^2+w*3"
                  (ord_is_lim o) true
 
+let test_ord_divmod _ =
+    assert_equal ~msg:"0 divmod 1"
+                 (divmod zero (int_to_ord 1)) (zero, zero);
+    assert_equal ~msg:"1 divmod 1"
+                 (divmod one (int_to_ord 1)) (one, zero);
 
+    let divtest x y =
+        let res, rem = divmod x y in
+        assert_equal ~msg:(Printf.sprintf "(%s) %% (%s) < (%s)"
+                                           (ord_to_str x) (ord_to_str y) (ord_to_str y))
+                     (compare rem y) (-1);
+        assert_equal ~msg:(Printf.sprintf "(%s) / (%s)" (ord_to_str x) (ord_to_str y))
+                     (add (mult y res) rem) x
+
+    in
+    divtest (int_to_ord 23) (int_to_ord 17);
+    divtest (add (mult omega omega) one) (omega);
+    divtest (add (mult omega omega) one) (add omega one);
+    divtest (add (mult omega omega) one) (add omega omega);
+    (* Do you know that (w^2+w*3+1) divmod (w+2) = (w+2, w+1)?  *)
+    divtest (add (mult omega omega) (add (mult omega (int_to_ord 3)) one))
+            (add omega (int_to_ord 2));
+    divtest (add (mult omega omega) one) (add omega omega);
+    divtest (int_to_ord 23) (omega)

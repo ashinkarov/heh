@@ -55,6 +55,7 @@ rule token = parse
   | "-"                                 { MINUS }
   | "*"                                 { MULT }
   | "/"                                 { DIV }
+  | "%"                                 { MOD }
   | "="                                 { EQ }
   | ">"                                 { GT }
   | ">="                                { GE }

@@ -45,6 +45,7 @@ and binop =
     | OpPlus
     | OpMinus
     | OpDiv
+    | OpMod
     | OpMult
     | OpLt
     | OpLe

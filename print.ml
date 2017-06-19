@@ -119,6 +119,7 @@ and bop_to_str bop =
     | OpMinus -> "-"
     | OpMult -> "*"
     | OpDiv -> "/"
+    | OpMod -> "%"
     | OpLt -> "<"
     | OpLe -> "<="
     | OpGt -> ">"
