@@ -19,12 +19,7 @@ open Printf
 open Ast
 open Globals
 
-(* XXX this is an example on how to handel command-line arguments.  *)
 let arglist = [
-    ("-s",
-        Arg.String (fun s -> somestr := s),
-        ": follows -s sets some string");
-
     ("-d",
         Arg.Set (debug_on),
         ": enable debug output");
