@@ -24,3 +24,48 @@ The name Heh refers to the Egyptian mythology, where Heh is the god of
 infinity.
 
 <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/a/ad/Heh.svg/700px-Heh.svg.png" width=250 alt="Heh -- the god of infinity"/>
+
+# Building the interpreter
+
+The following dependencies are required:
+  * Ocaml version >= 4.3;
+  * ocamlbuild
+  * menhir
+  * oUnit _if you wan to run unittests_
+
+To build the interpreter run `make` within the top-level directory which by default
+creates `main.native` (the interpreter) and `test.native` (unit tests).
+
+Building the interpreter without unit tests can be acheived by `make main.native`.
+
+# Running the interpreter
+
+An interpreter reads a file and executes the program.  Consider an example:
+
+```bash
+$ echo "2 + 2" | ./main.native /dev/stdin
+2 + 2
+res: p3 = 4
+$ echo "(imap [omega] {[0] <= iv < [omega]: iv.[0]).[42]" > /tmp/x.heh
+$ ./main.native /tmp/x.heh
+((imap [ω]|[] { [0] <= iv < [ω]: (((iv).([0])))).([42]))
+res: p14 = 42
+```
+The output contains:
+  1. the text of a program
+  2. the resulting pointer and value of the evaluated program.
+  
+The interpreter comes with a few flags, which description is available via `./main/native --help`.
+
+The interpreter comes with a number of examples available in the `examples` directory.
+
+# Testing
+
+The unit tests can be run as follows `./test.native`.
+
+This repository uses travis continious integration.  See `.travis.yml` file for more details.
+
+# Syntax hilighting
+
+Heh comes with a syntax hilighting description for Vim.
+Copy `vim/heh.vim` into `~/.vim/syntax` to make use of it.
