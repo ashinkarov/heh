@@ -1,4 +1,4 @@
-; Here we demonstrate an implementation of fold-rigth
+; Here we demonstrate an implementation of fold-right
 ; on vectors via recursive imap.  Keep in mind, that as
 ; this is recursive definition, we lose potential parallelism
 ; of the reduce, but we gain control over the order of

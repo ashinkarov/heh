@@ -9,6 +9,13 @@ letrec min = \x.\y. imap |x| {_(iv): if x.iv < y.iv then x.iv else y.iv in
 letrec zip = \a.\b. imap (min |a| (|b|))|[2]
                          { _(iv): [a.iv, b.iv] in
 
+; The previous version of the zip would force evaluation of the entire pair
+; when any of the elements is selected.  In this version of the zip, this is
+; not the case and the tuples of the final zip are lazy as well.
+letrec zip1 = \a.\b. letrec shp = min |a| (|b|) in
+                     imap [shp.[0], 2] { [0,0] <= iv < [shp.[0], 1]: a.[iv.[0]],
+                                         [0,1] <= iv < [shp.[0], 2]: b.[iv.[0]] in
+
 ; Application examples
 if (zip [1,2] [3,4,5,6]).[1,0] <> 2 then
     [false]

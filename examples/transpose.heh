@@ -1,0 +1,8 @@
+; A simple example to demonstrate how transpose of arrays
+; can be implemented in Heh.
+
+letrec reverse = \v.imap |v| {_(iv): v.[|v|.[0] - iv.[0] - 1] in
+letrec transpose = \a. imap (reverse |a|) { _(iv): a.(reverse iv) in
+
+
+transpose [[1,3,4,5]]

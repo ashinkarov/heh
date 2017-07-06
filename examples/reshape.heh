@@ -4,7 +4,7 @@
 ; function changes the shape of the array, where the new shape comes as
 ; a first argument.
 ; 
-; Key helper functions to acheive flattening and reshaping are
+; Key helper functions to achieve flattening and reshaping are
 ; index-to-offset and offset-to-index:
 ;    `idx2off idx shp' takes a vlaid index within the shape
 ;        `shp' and returns the offset of the element at the position
@@ -17,7 +17,7 @@
 ; This allows one to verify a family of array equalities that involve
 ; reshaping.  For example:
 ;
-;     reshape( shape(a), flatten(a)) == a
+;     reshape |a| (flatten a) == a
 
 
 ; FIXME We assume that all the reductions are happening left to right and here
