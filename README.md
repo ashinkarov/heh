@@ -3,11 +3,11 @@
 [![Build Status](https://travis-ci.org/ashinkarov/heh.svg?branch=master)](https://travis-ci.org/ashinkarov/heh)
 
 Heh is a functional programming language with a built-in support for infinite arrays.
-The languag is strict, but the infinte structures are lazy.  The language includes three
+The language is strict, but the infinite structures are lazy.  The language includes three
 built-in higher-order constructs: `imap`, `reduce` and `filter` which make it possible
 to construct complex array operations that can be often seen in APL or SaC.
 
-One of the main distinctive feartures of the language is that we use ordinals to index
+One of the main distinctive features of the language is that we use ordinals to index
 arrays as well as to maintain shapes of the arrays.  This gives a rise to a number of
 important static properties that one can observe in Heh.
 
@@ -63,9 +63,9 @@ The interpreter comes with a number of examples available in the `examples` dire
 
 The unit tests can be run as follows `./test.native`.
 
-This repository uses travis continious integration.  See `.travis.yml` file for more details.
+This repository uses travis continuous integration.  See `.travis.yml` file for more details.
 
 # Syntax hilighting
 
-Heh comes with a syntax hilighting description for Vim.
+Heh comes with a syntax highlighting description for Vim.
 Copy `vim/heh.vim` into `~/.vim/syntax` to make use of it.
