@@ -18,6 +18,7 @@
 open Printf
 open Ast
 open Globals
+open Lexer
 
 let arglist = [
     ("-d",
@@ -49,15 +50,21 @@ let main =
                     fname := x)
         usage;
 
+    printf "!fname = %s\n" !fname;
     let file = open_in !fname in
     let lexbuf = Lexing.from_channel file in
-    let e = Parser.prog Lexer.token lexbuf in
+
+    let e = Parser.parse_expr lexbuf in
+    printf "%s\n" (Print.expr_to_str @@ Parser.opt_get e);
+
+    (*let e = Parser.prog Lexer.token lexbuf in
     let e = Traverse.app_to_hof e in
     printf "%s\n" (Print.expr_to_str e);
     let st, p = Eval.eval (Storage.st_new ()) (Env.env_new ()) e in
     if !print_storage_on then
         printf "%s\n" (Storage.st_to_str st);
     printf "res: %s = %s\n\n"  p (Print.value_to_str @@ Storage.st_lookup st p);
+    *)
     close_in file
 
 let () = main
