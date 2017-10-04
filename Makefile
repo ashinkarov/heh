@@ -30,7 +30,7 @@ TEST_SRC := \
        tests/test_value.ml
 
 
-all: main.native #test.native
+all: main.native test.native
 
 
 main.native: $(SRC)

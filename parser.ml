@@ -106,11 +106,8 @@ let op_prec tok = match tok with
     | DIV -> 4
     | MOD -> 4
 
-    (* selection: .  *)
-    | DOT -> 5
-
     (* any other possibly user-defined operations  *)
-    | _ -> 6
+    | _ -> 5
 
 (* Stack to keep tokens that we have peeked at
    but not consumed yet.  *)
@@ -246,16 +243,29 @@ let rec parse_primary lexbuf =
     | _ -> unget_tok t;
            None
 
+
+and parse_postfix lexbuf =
+    let e = ref @@ parse_primary lexbuf in
+    while !e <> None && (peek_token lexbuf) = DOT do
+        let _ = get_token lexbuf in
+        let e1 = parse_primary lexbuf in
+        if e1 = None then
+            parse_err "expected index specification in selection";
+        e := Some (ESel (opt_get !e, opt_get e1))
+    done;
+    !e
+
 and parse_unary lexbuf =
     let t = peek_token lexbuf in
     match t with
     | ISLIM ->
-            (* FIXME give an error on empty expr *)
             let _ = get_token lexbuf in
-            let e = parse_primary lexbuf in
+            let e = parse_unary lexbuf in
+            if e = None then
+                parse_err "expected expression after `islim' operator";
             Some (EUnary (OpIsLim, opt_get e))
     | _ ->
-            parse_primary lexbuf
+            parse_postfix lexbuf
 
 and parse_app ?(e1=None) lexbuf  =
     match e1, parse_unary lexbuf with
@@ -269,11 +279,7 @@ and parse_binop ?(no_relop=false) lexbuf =
 
         if prec <= p1 then begin
             let e2, op2, p2 = Stack.pop s in
-            let e = if op1 = DOT then
-                        ESel (opt_get e2, opt_get e1)
-                    else
-                        EBinOp (op_to_binop op1, opt_get e2, opt_get e1)
-                    in
+            let e = EBinOp (op_to_binop op1, opt_get e2, opt_get e1) in
             Stack.push (Some (e), op2, p2) s;
             resolve_stack s prec
         end else begin

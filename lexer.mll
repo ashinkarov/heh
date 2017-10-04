@@ -105,8 +105,7 @@ let is_op ?(no_relop=false) tok = match tok with
     | MINUS
     | MULT
     | DIV
-    | MOD
-    | DOT -> true
+    | MOD  -> true
     | LE -> not no_relop
     | _ -> false
 
