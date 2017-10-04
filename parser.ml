@@ -413,5 +413,12 @@ and parse_gen lexbuf =
         parse_err "generator body expected";
     Some (gen, opt_get e)
 
-
+let prog lexbuf =
+    tok_stack := [];
+    bar_starts_expr := true;
+    match parse_expr lexbuf with
+    | Some (e) -> e
+    | None -> raise (ImapFailure
+                        (sprintf "failed to parse `%s' (parser rerutned None)"
+                                !Globals.fname))
 

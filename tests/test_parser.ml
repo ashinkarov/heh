@@ -8,7 +8,8 @@ open Globals
 
 let parse_prog prg =
     let lexbuf = Lexing.from_string prg in
-    Parser.prog Lexer.token lexbuf
+    fname := sprintf "prog: `%s'" prg;
+    Parser.prog lexbuf
 
 let test_parser _ =
     let prg = "f a.iv" in

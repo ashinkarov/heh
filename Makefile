@@ -39,6 +39,10 @@ main.native: $(SRC)
 test.native: $(TEST_SRC) $(SRC)
 	$(OCB) -package oUnit -I tests test.native
 
+test.d.byte: $(TEST_SRC) $(SRC)
+	$(OCB) -package oUnit -I tests test.d.byte
+
+
 main.d.byte: $(SRC)
 	$(OCB)  main.d.byte
 

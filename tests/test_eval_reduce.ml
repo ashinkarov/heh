@@ -7,7 +7,8 @@ open Eval
 
 let eval_prog prg =
     let lexbuf = Lexing.from_string prg in
-    let e = Parser.prog Lexer.token lexbuf in
+    Globals.fname := sprintf "prog `%s'" prg;
+    let e = Parser.prog lexbuf in
     let e = Traverse.app_to_hof e in
     Eval.eval (Storage.st_new ()) (Env.env_new ()) e
 

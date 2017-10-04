@@ -39,7 +39,6 @@ let arglist = [
 
   ]
 
-
 let main =
     Arg.parse_argv
         Sys.argv
@@ -50,12 +49,10 @@ let main =
                     fname := x)
         usage;
 
-    printf "!fname = %s\n" !fname;
     let file = open_in !fname in
     let lexbuf = Lexing.from_channel file in
-
-    let e = Parser.parse_expr lexbuf in
-    let e = Traverse.app_to_hof (Parser.opt_get e) in
+    let e = Parser.prog lexbuf in
+    let e = Traverse.app_to_hof e in
     printf "%s\n" (Print.expr_to_str e);
     let st, p = Eval.eval (Storage.st_new ()) (Env.env_new ()) e in
     if !print_storage_on then
