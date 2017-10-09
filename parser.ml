@@ -27,8 +27,8 @@ module Loc = struct
         }
 
     let mk l c = {line=l ; col=c}
-    let print l =
-        Printf.printf "%s:%d:%d " !Globals.fname l.line l.col
+    let to_str l =
+        Printf.sprintf "%s:%d:%d" !Globals.fname l.line l.col
 end
 
 module Tok = struct
@@ -115,9 +115,8 @@ let tok_stack = ref []
    nested expression within |e|.  *)
 let bar_starts_expr = ref true
 
-(* FIXME add locations.  *)
-let parse_err msg =
-    raise (ImapFailure msg)
+let parse_err_loc loc msg =
+    raise (ImapFailure (sprintf "%s: error: %s" (Loc.to_str loc) msg))
 
 let get_loc lexbuf =
     let curr = lexbuf.Lexing.lex_curr_p in
@@ -149,12 +148,15 @@ let peek_token lexbuf =
     (*printf "peek-tok returns `%s'\n" @@ tok_to_str t;*)
     t
 
+let peek_loc lexbuf =
+    Tok.get_loc (peek_token lexbuf)
+
 (* FIXME add 'msg' parameter to alter the error message.  *)
 let expect_id lexbuf =
     let t = get_token lexbuf in
     match Tok.get_tok t with
     | ID (x) -> t
-    | _ -> parse_err
+    | _ -> parse_err_loc (Tok.get_loc t)
            @@ sprintf "expected identifier, found `%s' instead"
                       (Tok.to_str t)
 
@@ -162,7 +164,7 @@ let expect_id lexbuf =
 let expect_tok lexbuf t_exp =
     let t = get_token lexbuf in
     if Tok.get_tok t <> t_exp then
-        parse_err
+        parse_err_loc (Tok.get_loc t)
         @@ sprintf "expected token `%s', found `%s' instead"
                    (Lexer.tok_to_str t_exp)
                    (Tok.to_str t);
@@ -173,7 +175,7 @@ let expect_tok lexbuf t_exp =
 let rec parse_generic_list ?(msg="expression expected") lexbuf parse_fun =
     let e = parse_fun lexbuf in
     if e = None then
-        parse_err msg;
+        parse_err_loc (peek_loc lexbuf) msg;
     let t = peek_token lexbuf in
     if Tok.get_tok t = COMMA then
         let _ = get_token lexbuf in
@@ -194,10 +196,10 @@ let rec parse_primary lexbuf =
                     bar_starts_expr := false;
                     let e = parse_expr lexbuf in
                     if e = None then
-                        parse_err "expression expected after |";
+                        parse_err_loc (peek_loc lexbuf) "expression expected after |";
                     let t = peek_token lexbuf in
                     if Tok.get_tok t <> BAR then
-                        parse_err "closing `|' missing to match the one at location";
+                        parse_err_loc (Tok.get_loc t) "closing `|' missing to match the one at location";
                     let _ = get_token lexbuf in
                     bar_starts_expr := true;
                     Some (EUnary (OpShape, opt_get e))
@@ -224,7 +226,7 @@ let rec parse_primary lexbuf =
                 bar_starts_expr := true;
                 let e = parse_expr lexbuf in
                 if e = None then
-                    parse_err "empty expression found";
+                    parse_err_loc (peek_loc lexbuf) "empty expression found";
                 let _ = expect_tok lexbuf RPAREN in
                 bar_starts_expr := bar_state;
                 e
@@ -245,7 +247,7 @@ and parse_postfix lexbuf =
         let _ = get_token lexbuf in
         let e1 = parse_primary lexbuf in
         if e1 = None then
-            parse_err "expected index specification in selection";
+            parse_err_loc (peek_loc lexbuf) "expected index specification in selection";
         e := Some (ESel (opt_get !e, opt_get e1))
     done;
     !e
@@ -257,7 +259,7 @@ and parse_unary lexbuf =
             let _ = get_token lexbuf in
             let e = parse_unary lexbuf in
             if e = None then
-                parse_err "expected expression after `islim' operator";
+                parse_err_loc (peek_loc lexbuf) "expected expression after `islim' operator";
             Some (EUnary (OpIsLim, opt_get e))
     | _ ->
             parse_postfix lexbuf
@@ -283,25 +285,28 @@ and parse_binop ?(no_relop=false) lexbuf =
     in
 
     let e1 = parse_app lexbuf in
-    let s = Stack.create () in
+    if e1 = None then
+        e1
+    else
+        let s = Stack.create () in
 
-    (* First expression goes with no priority, priority = -1.
-       FIXME we also use EOF as bogus operation, we can make this
-             field of type token option to make it cleaner.  *)
-    Stack.push (e1, EOF, -1) s;
-    while is_op ~no_relop:no_relop (Tok.get_tok @@ peek_token lexbuf) do
-        let t = get_token lexbuf in
+        (* First expression goes with no priority, priority = -1.
+           FIXME we also use EOF as bogus operation, we can make this
+                 field of type token option to make it cleaner.  *)
+        Stack.push (e1, EOF, -1) s;
+        while is_op ~no_relop:no_relop (Tok.get_tok @@ peek_token lexbuf) do
+            let t = get_token lexbuf in
 
-        (* resolve priority stack.  *)
-        resolve_stack s (op_prec @@ Tok.get_tok t);
-        let e2 = parse_app lexbuf in
-        if e2 = None then
-            parse_err @@ sprintf "expression expected after %s" (Tok.to_str t);
-        Stack.push (e2, Tok.get_tok t, (op_prec @@ Tok.get_tok t)) s;
-    done;
-    resolve_stack s 0;
-    let e, op, prec = Stack.pop s in
-    e
+            (* resolve priority stack.  *)
+            resolve_stack s (op_prec @@ Tok.get_tok t);
+            let e2 = parse_app lexbuf in
+            if e2 = None then
+                parse_err_loc (peek_loc lexbuf)  @@ sprintf "expression expected after %s" (Tok.to_str t);
+            Stack.push (e2, Tok.get_tok t, (op_prec @@ Tok.get_tok t)) s;
+        done;
+        resolve_stack s 0;
+        let e, op, prec = Stack.pop s in
+        e
 
 
 and parse_expr lexbuf =
@@ -313,7 +318,7 @@ and parse_lambda lexbuf =
     let _ = expect_tok lexbuf DOT in
     let e = parse_expr lexbuf in
     if e = None then
-        parse_err "expression expected after `.'";
+        parse_err_loc (peek_loc lexbuf) "expression expected after `.'";
     Some (ELambda (Tok.to_str t, opt_get e))
 
 and parse_cond lexbuf =
@@ -322,16 +327,16 @@ and parse_cond lexbuf =
     bar_starts_expr := true;
     let e1 = parse_expr lexbuf in
     if e1 = None then
-        parse_err "expression expected after `if'";
+        parse_err_loc (peek_loc lexbuf) "expression expected after `if'";
     let _ = expect_tok lexbuf THEN in
     let e2 = parse_expr lexbuf in
     if e2 = None then
-        parse_err "expression expected after `then'";
+        parse_err_loc (peek_loc lexbuf) "expression expected after `then'";
     let _ = expect_tok lexbuf ELSE in
     bar_starts_expr := bar_state;
     let e3 = parse_expr lexbuf in
     if e3 = None then
-        parse_err "expression expected after `else'";
+        parse_err_loc (peek_loc lexbuf) "expression expected after `else'";
     Some (ECond (opt_get e1, opt_get e2, opt_get e3))
 
 and parse_letrec lexbuf =
@@ -343,11 +348,11 @@ and parse_letrec lexbuf =
     let e1 = parse_expr lexbuf in
     bar_starts_expr := bar_state;
     if e1 = None then
-        parse_err "expression expected after `=' and before `in'";
+        parse_err_loc (peek_loc lexbuf) "expression expected after `=' and before `in'";
     let _ = expect_tok lexbuf IN in
     let e2 = parse_expr lexbuf in
     if e2 = None then
-        parse_err "expression expected after `in'";
+        parse_err_loc (peek_loc lexbuf) "expression expected after `in'";
     Some (ELetRec (Tok.to_str t, opt_get e1, opt_get e2))
 
 and parse_imap lexbuf =
@@ -356,13 +361,13 @@ and parse_imap lexbuf =
     bar_starts_expr := (Tok.get_tok @@ peek_token lexbuf) = BAR;
     let sh1 = parse_expr lexbuf in
     if sh1 = None then
-        parse_err "expression expected after `imap'";
+        parse_err_loc (peek_loc lexbuf) "expression expected after `imap'";
     let sh2 = if BAR = Tok.get_tok @@ peek_token lexbuf then begin
                   bar_starts_expr := true;
                   let _ = get_token lexbuf in
                   let sh2 = parse_expr lexbuf in
                   if sh2 = None then
-                      parse_err "cell shape specification expected";
+                      parse_err_loc (peek_loc lexbuf) "cell shape specification expected";
                   sh2
               end else
                   Some (EArray ([])) in
@@ -393,19 +398,19 @@ and parse_gen lexbuf =
               else
                   let lb = parse_binop ~no_relop:true lexbuf in
                   if lb = None then
-                      parse_err "lower bound expression expected";
+                      parse_err_loc (peek_loc lexbuf) "lower bound expression expected";
                   let _ = expect_tok lexbuf LE in
                   let iv = expect_id lexbuf in
                   let _ = expect_tok lexbuf LT in
                   let ub = parse_binop lexbuf in
                   if ub = None then
-                      parse_err "upper bound expression expected";
+                      parse_err_loc (peek_loc lexbuf) "upper bound expression expected";
                   FullGen ((opt_get lb), (Tok.to_str iv), (opt_get ub))
               in
     let _ = expect_tok lexbuf COLON in
     let e = parse_expr lexbuf in
     if e = None then
-        parse_err "generator body expected";
+        parse_err_loc (peek_loc lexbuf) "generator body expected";
     Some (gen, opt_get e)
 
 let prog lexbuf =
