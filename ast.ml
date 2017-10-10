@@ -86,8 +86,72 @@ let mk_efilter ?(loc=Loc.internal) f arr = { loc=loc; expr_kind=EFilter (f, arr)
 
 (** Predicates **)
 
-
 let expr_is_lambda e =
     match e with
     | { expr_kind = ELambda (_, _) } -> true
     | _ -> false
+
+
+
+let rec cmp_ast_noloc e1 e2 =
+    match e1, e2 with
+    | { expr_kind = EFalse }, { expr_kind = EFalse } -> true
+    | { expr_kind = ETrue }, { expr_kind = ETrue } -> true
+    | { expr_kind = ENum x }, { expr_kind = ENum y } -> x = y
+    | { expr_kind = EVar x }, { expr_kind = EVar y } -> x = y
+    | { expr_kind = EArray arr1 }, { expr_kind = EArray arr2 } ->
+            List.length arr1 = List.length arr2 
+            && (List.fold_left2 (fun res x y -> res && cmp_ast_noloc x y) true arr1 arr2)
+    | { expr_kind = EBinOp (op1, x1, y1) }, { expr_kind = EBinOp (op2, x2, y2) } ->
+            op1 = op2
+            && cmp_ast_noloc x1 x1
+            && cmp_ast_noloc y1 y2
+    | { expr_kind = EUnary (op1, x1) }, { expr_kind = EUnary (op2, x2) } ->
+            op1 = op2
+            && cmp_ast_noloc x1 x2
+    | { expr_kind = ELambda (v1, e1) }, { expr_kind = ELambda (v2, e2) } ->
+            v1 = v2
+            && cmp_ast_noloc e1 e2
+    | { expr_kind = EApply (x1, y1) }, { expr_kind = EApply (x2, y2) } ->
+            cmp_ast_noloc x1 x2
+            && cmp_ast_noloc y1 y2
+    | { expr_kind = ESel (x1, y1) }, { expr_kind = ESel (x2, y2) } ->
+            cmp_ast_noloc x1 x2
+            && cmp_ast_noloc y1 y2
+    | { expr_kind = ECond (x1, y1, z1) }, { expr_kind = ECond (x2, y2, z2) } ->
+            cmp_ast_noloc x1 x2
+            && cmp_ast_noloc y1 y2
+            && cmp_ast_noloc z1 z2
+    | { expr_kind = ELetRec (v1, x1, y1) }, { expr_kind = ELetRec (v2, x2, y2) } ->
+            v1 = v2
+            && cmp_ast_noloc x1 x2
+            && cmp_ast_noloc y1 y2
+    | { expr_kind = EImap (fr1, cell1, gel1) }, { expr_kind = EImap (fr2, cell2, gel2) } ->
+            cmp_ast_noloc fr1 fr2
+            && cmp_ast_noloc cell1 cell2
+            && List.length gel1 = List.length gel2
+            && (List.fold_left2
+                (fun res ge1 ge2 ->
+                    res
+                    && match ge1, ge2 with 
+                       | ((lb1, v1, ub1), e1), ((lb2, v2, ub2), e2) ->
+                               v1 = v2
+                               && cmp_ast_noloc lb1 lb2
+                               && cmp_ast_noloc ub1 ub2
+                               && cmp_ast_noloc e1 e2)
+                true
+                gel1
+                gel2)
+
+    | { expr_kind = EReduce (x1, y1, z1) }, { expr_kind = EReduce (x2, y2, z2) } ->
+            cmp_ast_noloc x1 x2
+            && cmp_ast_noloc y1 y2
+            && cmp_ast_noloc z1 z2
+    
+    | { expr_kind = EFilter (x1, y1) }, { expr_kind = EFilter (x2, y2) } ->
+            cmp_ast_noloc x1 x2
+            && cmp_ast_noloc y1 y2
+
+    | _ -> false
+
+

@@ -65,7 +65,7 @@ let test_eval_imap _ =
 
     in
     let err_msg = "partitions of " ^
-                  "`imap [10]|[] { [0] <= iv < [5]: (1), [6] <= iv < [10]: (2)' " ^
+                  "`imap ([10])|[] { [0] <= iv < [5]: (1), [6] <= iv < [10]: (2)' " ^
                   "do not fill the specified imap range ([0], [10])" in
     assert_raises (EvalFailure err_msg)
                   try_poor_partitioning;

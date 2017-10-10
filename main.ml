@@ -56,10 +56,10 @@ let main =
     let e = Parser.prog lexbuf in
     let e = Traverse.app_to_hof e in
     printf "%s\n" (Print.expr_to_str e);
-    (*let st, p = Eval.eval (Storage.st_new ()) (Env.env_new ()) e in
+    let st, p = Eval.eval (Storage.st_new ()) (Env.env_new ()) e in
     if !print_storage_on then
         printf "%s\n" (Storage.st_to_str st);
-    printf "res: %s = %s\n\n"  p (Print.value_to_str @@ Storage.st_lookup st p);*)
+    printf "res: %s = %s\n\n"  p (Print.value_to_str @@ Storage.st_lookup st p);
     close_in file
 
 let () = main

@@ -14,8 +14,6 @@
  * PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Ast
-open Ordinals
 
 exception ValueFailure of string
 
@@ -24,7 +22,7 @@ type value =
     | VTrue
     | VNum of Ordinals.ordinal
     | VArray of value list * value list
-    | VClosure of expr * Env.env
+    | VClosure of Ast.expr * Env.env
 
     (* :: ptr_out_shape * ptr_inner_shape * [vgen * ptr_or_expr] * env *)
     | VImap of string * string * (vgen * expr_or_ptr) list * Env.env
@@ -36,7 +34,7 @@ and vgen = value * string * value
 
 and expr_or_ptr =
     | EPptr of string
-    | EPexpr of expr
+    | EPexpr of Ast.expr
 
 (* A shortcut for raising an exception.  *)
 let value_err msg =

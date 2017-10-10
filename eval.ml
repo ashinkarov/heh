@@ -543,19 +543,19 @@ and ptr_unary st env op p1 =
 
 and eval st env e =
     match e with
-    | EFalse ->
+    | { expr_kind = EFalse } ->
             add_fresh_val_as_result st @@ mk_false_value
 
-    | ETrue ->
+    | { expr_kind = ETrue } ->
             add_fresh_val_as_result st @@ mk_true_value
 
-    | ENum (o) ->
+    | { expr_kind = ENum (o) } ->
             add_fresh_val_as_result st @@ mk_ord_value o
 
-    | EVar (x) ->
+    | { expr_kind = EVar (x) } ->
             (st, (env_lookup env x))
 
-    | EArray (lst) ->
+    | { expr_kind = EArray (lst) } ->
             (* evaluate all the elements in the list sequentially.  *)
             let st, ptrlst = eval_expr_lst st env lst in
             (* check that the shape of the elements is the same.  *)
@@ -579,10 +579,10 @@ and eval st env e =
                             ptrlst [] in
             add_fresh_val_as_result st @@ mk_array_value shp data
 
-    | ELambda (_, _) ->
+    | { expr_kind = ELambda (_, _) } ->
             add_fresh_val_as_result st @@ mk_closure_value e env
 
-    | ESel (e1, e2) ->
+    | { expr_kind = ESel (e1, e2) } ->
             let (st, p1) = eval st env e1 in
             let (st, p2) = eval st env e2 in
             (* force evaluation of the index if it is an imap.  *)
@@ -615,7 +615,7 @@ and eval st env e =
 
             eval_selection st env p1 p2
 
-    | EApply (e1, e2) ->
+    | { expr_kind = EApply (e1, e2) } ->
             let (st, p1) = eval st env e1 in
             let (st, p2) = eval st env e2 in
             (*printf "--[eval-app/selection] `%s' `%s'\n"
@@ -623,17 +623,17 @@ and eval st env e =
             let var, body, env' = value_closure_to_triple (st_lookup st p1) in
             eval st (env_add env' var p2) body
 
-    | EBinOp (op, e1, e2) ->
+    | { expr_kind = EBinOp (op, e1, e2) } ->
             let (st, p1) = eval st env e1 in
             let (st, p2) = eval st env e2 in
             add_fresh_val_as_result st (ptr_binop st op p1 p2)
 
-    | EUnary (op, e1) ->
+    | { expr_kind = EUnary (op, e1) } ->
             let (st, p1) = eval st env e1 in
             let st, v = ptr_unary st env op p1 in
             add_fresh_val_as_result st v
 
-    | ECond (e1, e2, e3) ->
+    | { expr_kind = ECond (e1, e2, e3) } ->
             let (st, p1) = eval st env e1 in
             let v = st_lookup st p1 in
             begin
@@ -644,13 +644,13 @@ and eval st env e =
                                            (expr_to_str e) (value_to_str v)
             end
 
-    | ELetRec (var, e1, e2) ->
+    | { expr_kind = ELetRec (var, e1, e2) } ->
             let pname = fresh_ptr_name () in
             let (st, p1) = eval st (env_add env var pname) e1 in
             let st = update_letrec_ptr st pname p1 in
             eval st (env_add env var p1) e2
 
-    | EImap (e1, e2, ge_lst) ->
+    | { expr_kind = EImap (e1, e2, ge_lst) } ->
             let st, p1 = eval st env e1 in
             let st, p2 = eval st env e2 in
             (* force evaluation of the outer shape in case it is an imap.  *)
@@ -717,7 +717,7 @@ and eval st env e =
             else
                 add_fresh_val_as_result st @@ mk_imap_value p1 p2 vg_expr_lst env
 
-    | EReduce (func, neut, a) ->
+    | { expr_kind = EReduce (func, neut, a) } ->
             let (st, pfunc) = eval st env func in
             let (st, pneut) = eval st env neut in
             let (st, pa) = eval st env a in
@@ -726,7 +726,7 @@ and eval st env e =
                                     @@ expr_to_str e;
             eval_reduce st env pfunc pneut pa
 
-    | EFilter (func, obj) ->
+    | { expr_kind = EFilter (func, obj) } ->
             let (st, pfunc) = eval st env func in
             let (st, pobj) = eval st env obj in
             if not @@ value_is_closure @@ st_lookup st pfunc then
@@ -755,7 +755,7 @@ and eval_bin_app st env p_func p_arg1 p_arg2 msg =
     try
         eval st
              (env_add (env_add (env_add env "__x0" p_arg1) "__x1" p_arg2) "__func" p_func)
-             (EApply (EApply (EVar ("__func"), EVar ("__x0")), EVar ("__x1")))
+             (mk_eapply (mk_eapply (mk_evar "__func") (mk_evar "__x0")) (mk_evar "__x1"))
     with
         EvalFailure _ ->
             eval_err msg
@@ -764,7 +764,7 @@ and eval_unary_app st env p_func p_arg1 msg =
     try
         eval st
              (env_add (env_add env "__x0" p_arg1) "__func" p_func)
-             (EApply (EVar ("__func"), EVar ("__x0")))
+             (mk_eapply (mk_evar "__func") (mk_evar "__x0"))
     with
         EvalFailure _ ->
             eval_err msg
@@ -776,7 +776,7 @@ and eval_obj_sel st env p_obj p_idx msg =
     try
         eval st
              (env_add (env_add env "__idx" p_idx) "__obj" p_obj)
-             (ESel (EVar ("__obj"), EVar ("__idx")))
+             (mk_esel (mk_evar "__obj") (mk_evar "__idx"))
     with
         EvalFailure m ->
             printf "error: `%s'\n" m;
