@@ -50,14 +50,16 @@ let main =
         usage;
 
     let file = open_in !fname in
-    let lexbuf = Lexing.from_channel file in
+    let open Lexing in
+    let lexbuf = from_channel file in
+    lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = !fname };
     let e = Parser.prog lexbuf in
     let e = Traverse.app_to_hof e in
     printf "%s\n" (Print.expr_to_str e);
-    let st, p = Eval.eval (Storage.st_new ()) (Env.env_new ()) e in
+    (*let st, p = Eval.eval (Storage.st_new ()) (Env.env_new ()) e in
     if !print_storage_on then
         printf "%s\n" (Storage.st_to_str st);
-    printf "res: %s = %s\n\n"  p (Print.value_to_str @@ Storage.st_lookup st p);
+    printf "res: %s = %s\n\n"  p (Print.value_to_str @@ Storage.st_lookup st p);*)
     close_in file
 
 let () = main

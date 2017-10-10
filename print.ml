@@ -64,39 +64,39 @@ and vgen_to_str vg =
         be to combine patterns in a string tree first and then flatten it once.  *)
 and expr_to_str e =
     match e with
-    | ETrue ->
+    | { expr_kind = ETrue } ->
             "true"
-    | EFalse ->
+    | { expr_kind = EFalse } ->
             "false"
-    | ENum (e1) ->
+    | { expr_kind = ENum (e1) } ->
             ord_to_str e1
-    | EArray (e1) ->
+    | { expr_kind = EArray (e1) } ->
             sprintf "[%s]" (array_to_str e1)
-    | EVar (x) ->
+    | { expr_kind = EVar (x) } ->
             sprintf "%s" x
-    | EFilter (e1, e2) ->
+    | { expr_kind = EFilter (e1, e2) } ->
             sprintf "filter %s %s" (expr_to_str e1) (expr_to_str e2)
-    | EReduce (e1, e2, e3) ->
+    | { expr_kind = EReduce (e1, e2, e3) } ->
             sprintf "reduce %s %s %s"
                     (expr_to_str e1) (expr_to_str e2) (expr_to_str e3)
-    | EImap (e1, e2, gelst) ->
-            sprintf "imap %s|%s { %s"
+    | { expr_kind = EImap (e1, e2, gelst) } ->
+            sprintf "imap (%s)|%s { %s"
                     (expr_to_str e1) (expr_to_str e2) (gen_expr_list_to_str gelst)
-    | ELetRec (x, e1, e2) ->
+    | { expr_kind = ELetRec (x, e1, e2) } ->
             sprintf "letrec %s = %s in %s"
                      x (expr_to_str e1) (expr_to_str e2)
-    | ECond (e1, e2, e3) ->
+    | { expr_kind = ECond (e1, e2, e3) } ->
             sprintf "if %s then %s else %s"
                     (expr_to_str e1) (expr_to_str e2) (expr_to_str e3)
-    | EApply (e1, e2) ->
+    | { expr_kind = EApply (e1, e2) } ->
             sprintf "((%s) (%s))" (expr_to_str e1) (expr_to_str e2)
-    | ESel (e1, e2) ->
+    | { expr_kind = ESel (e1, e2) } ->
             sprintf "((%s).(%s))" (expr_to_str e1) (expr_to_str e2)
-    | ELambda (x, e1) ->
+    | { expr_kind = ELambda (x, e1) } ->
             sprintf "λ%s.(%s)" x (expr_to_str e1)
-    | EBinOp (bop, e1, e2) ->
+    | { expr_kind = EBinOp (bop, e1, e2) } ->
             sprintf "%s %s %s" (expr_to_str e1) (bop_to_str bop) (expr_to_str e2)
-    | EUnary (uop, e1) ->
+    | { expr_kind = EUnary (uop, e1) } ->
             match uop with
             | OpShape -> sprintf "|%s|" (expr_to_str e1)
             | OpIsLim -> sprintf "islim (%s)" (expr_to_str e1)

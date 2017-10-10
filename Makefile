@@ -4,6 +4,7 @@ SRC := ast.ml \
        value.ml \
        valueops.ml \
        main.ml \
+       loc.ml \
        lexer.mll \
        parser.ml \
        ordinals.ml \

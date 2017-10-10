@@ -14,23 +14,6 @@
  * PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Loc = struct
-    type t =
-        {
-            line: int;
-            col: int;
-        }
-    type 'a loc =
-        {
-            value : 'a;
-            loc : t;
-        }
-
-    let mk l c = {line=l ; col=c}
-    let to_str l =
-        Printf.sprintf "%s:%d:%d" !Globals.fname l.line l.col
-end
-
 module Tok = struct
     type t =
         {
@@ -65,22 +48,24 @@ type gen_opt =
 
 
 let mk_full_gen shp x =
+    let { loc = shp_loc } = shp in
     let mul_shp_zero =
-        ELambda ("x",
-                 EImap (EUnary (OpShape, EVar ("x")),
-                        EArray ([]),
-                        [((EArray ([ENum (zero)]),
-                           "iv",
-                           EUnary (OpShape, EVar ("x"))),
+        mk_elambda "__x"
+                   (mk_eimap (mk_eunary OpShape (mk_evar "__x"))
+                             (mk_earray [])
+                             [(
+                                 (* generator: [0] <= iv |__x| *)
+                                 (mk_earray [mk_enum zero],
+                                  "__iv",
+                                  mk_eunary OpShape (mk_evar "__x")),
 
-                          EBinOp (OpMult,
-                                  ESel (EVar ("x"), EVar ("iv")),
-                                  ENum (zero)))]))
+                                 (* body: 0 * __x.iv *)
+                                 mk_ebinop OpMult
+                                           (mk_enum zero)
+                                           (mk_esel (mk_evar "__x") (mk_evar "__iv")))])
+                   ~loc:shp_loc
     in
-        (EApply (mul_shp_zero, shp),
-         x,
-         shp)
-
+        (mk_eapply mul_shp_zero shp, x, shp)
 
 
 let op_prec tok = match tok with
@@ -119,10 +104,12 @@ let parse_err_loc loc msg =
     raise (ImapFailure (sprintf "%s: error: %s" (Loc.to_str loc) msg))
 
 let get_loc lexbuf =
-    let curr = lexbuf.Lexing.lex_curr_p in
-    let line = curr.Lexing.pos_lnum in
-    let col = curr.Lexing.pos_cnum - curr.Lexing.pos_bol in
-    Loc.mk line col
+    (* XXX we can grab the end of the token as well, in case we want to. *)
+    let open Lexing in
+    let loc_s = lexeme_start_p lexbuf in
+    let l = Loc.mk loc_s.pos_fname loc_s.pos_lnum
+                   (loc_s.pos_cnum - loc_s.pos_bol + 1) in
+    l
 
 (* Puts the token back on the to of the stack.  *)
 let unget_tok tok =
@@ -186,12 +173,13 @@ let rec parse_generic_list ?(msg="expression expected") lexbuf parse_fun =
 
 let rec parse_primary lexbuf =
     let t = get_token lexbuf in
+    let l = Tok.get_loc t in
     match Tok.get_tok t with
-    | TRUE ->   Some (ETrue)
-    | FALSE ->  Some (EFalse)
-    | ID x ->   Some (EVar (x))
-    | INT n ->  Some (ENum (int_to_ord n))
-    | OMEGA ->  Some (ENum (omega))
+    | TRUE ->   Some (mk_etrue () ~loc:l)
+    | FALSE ->  Some (mk_efalse () ~loc:l)
+    | ID x ->   Some (mk_evar x ~loc:l)
+    | INT n ->  Some (mk_enum (int_to_ord n) ~loc:l)
+    | OMEGA ->  Some (mk_enum (omega) ~loc:l)
     | BAR ->    if !bar_starts_expr then begin
                     bar_starts_expr := false;
                     let e = parse_expr lexbuf in
@@ -199,10 +187,12 @@ let rec parse_primary lexbuf =
                         parse_err_loc (peek_loc lexbuf) "expression expected after |";
                     let t = peek_token lexbuf in
                     if Tok.get_tok t <> BAR then
-                        parse_err_loc (Tok.get_loc t) "closing `|' missing to match the one at location";
+                        parse_err_loc (Tok.get_loc t)
+                                      (sprintf "missing closing `|' to match the one at location %s"
+                                                (Loc.to_str l));
                     let _ = get_token lexbuf in
                     bar_starts_expr := true;
-                    Some (EUnary (OpShape, opt_get e))
+                    Some (mk_eunary OpShape (opt_get e) ~loc:l)
                 end else begin
                     unget_tok t;
                     None
@@ -211,15 +201,15 @@ let rec parse_primary lexbuf =
                 let bar_state = !bar_starts_expr in
                 bar_starts_expr := true;
 
-                let l = if Tok.get_tok (peek_token lexbuf) = RSQUARE then
-                            []
-                        else
-                            parse_generic_list lexbuf parse_expr
-                            ~msg:"array element definition is missing"
-                        in
+                let lst = if Tok.get_tok (peek_token lexbuf) = RSQUARE then
+                              []
+                          else
+                              parse_generic_list lexbuf parse_expr
+                              ~msg:"array element definition is missing"
+                in
                 let _ = expect_tok lexbuf RSQUARE in
                 bar_starts_expr := bar_state;
-                Some (EArray (List.map opt_get l))
+                Some (mk_earray (List.map opt_get lst) ~loc:l)
 
     | LPAREN ->
                 let bar_state = !bar_starts_expr in
@@ -248,26 +238,27 @@ and parse_postfix lexbuf =
         let e1 = parse_primary lexbuf in
         if e1 = None then
             parse_err_loc (peek_loc lexbuf) "expected index specification in selection";
-        e := Some (ESel (opt_get !e, opt_get e1))
+        e := Some (mk_esel (opt_get !e) (opt_get e1))
     done;
     !e
 
 and parse_unary lexbuf =
     let t = peek_token lexbuf in
+    let l = Tok.get_loc t in
     match Tok.get_tok t with
     | ISLIM ->
             let _ = get_token lexbuf in
             let e = parse_unary lexbuf in
             if e = None then
                 parse_err_loc (peek_loc lexbuf) "expected expression after `islim' operator";
-            Some (EUnary (OpIsLim, opt_get e))
+            Some (mk_eunary OpIsLim (opt_get e) ~loc:l)
     | _ ->
             parse_postfix lexbuf
 
 and parse_app ?(e1=None) lexbuf  =
     match e1, parse_unary lexbuf with
     | None, Some e2 -> parse_app lexbuf ~e1:(Some e2)
-    | Some e1, Some e2 -> parse_app lexbuf ~e1:(Some (EApply (e1, e2)))
+    | Some e1, Some e2 -> parse_app lexbuf ~e1:(Some (mk_eapply e1 e2))
     | _, None -> e1
 
 and parse_binop ?(no_relop=false) lexbuf =
@@ -276,7 +267,7 @@ and parse_binop ?(no_relop=false) lexbuf =
 
         if prec <= p1 then begin
             let e2, op2, p2 = Stack.pop s in
-            let e = EBinOp (op_to_binop op1, opt_get e2, opt_get e1) in
+            let e = mk_ebinop (op_to_binop op1) (opt_get e2) (opt_get e1) in
             Stack.push (Some (e), op2, p2) s;
             resolve_stack s prec
         end else begin
@@ -313,16 +304,20 @@ and parse_expr lexbuf =
     parse_binop lexbuf
 
 and parse_lambda lexbuf =
-    assert (LAMBDA = Tok.get_tok @@ get_token lexbuf);
+    let t = get_token lexbuf in
+    let l = Tok.get_loc t in
+    assert (LAMBDA = Tok.get_tok t);
     let t = expect_id lexbuf in
     let _ = expect_tok lexbuf DOT in
     let e = parse_expr lexbuf in
     if e = None then
         parse_err_loc (peek_loc lexbuf) "expression expected after `.'";
-    Some (ELambda (Tok.to_str t, opt_get e))
+    Some (mk_elambda (Tok.to_str t) (opt_get e) ~loc:l)
 
 and parse_cond lexbuf =
-    assert (IF = Tok.get_tok @@ get_token lexbuf);
+    let t = get_token lexbuf in
+    let l = Tok.get_loc t in
+    assert (IF = Tok.get_tok t);
     let bar_state = !bar_starts_expr in
     bar_starts_expr := true;
     let e1 = parse_expr lexbuf in
@@ -337,10 +332,12 @@ and parse_cond lexbuf =
     let e3 = parse_expr lexbuf in
     if e3 = None then
         parse_err_loc (peek_loc lexbuf) "expression expected after `else'";
-    Some (ECond (opt_get e1, opt_get e2, opt_get e3))
+    Some (mk_econd (opt_get e1) (opt_get e2) (opt_get e3) ~loc:l)
 
 and parse_letrec lexbuf =
-    assert (LETREC = Tok.get_tok @@ get_token lexbuf);
+    let t = get_token lexbuf in
+    let l = Tok.get_loc t in
+    assert (LETREC = Tok.get_tok t);
     let t = expect_id lexbuf in
     let _ = expect_tok lexbuf EQ in
     let bar_state = !bar_starts_expr in
@@ -353,10 +350,12 @@ and parse_letrec lexbuf =
     let e2 = parse_expr lexbuf in
     if e2 = None then
         parse_err_loc (peek_loc lexbuf) "expression expected after `in'";
-    Some (ELetRec (Tok.to_str t, opt_get e1, opt_get e2))
+    Some (mk_eletrec (Tok.to_str t) (opt_get e1) (opt_get e2) ~loc:l)
 
 and parse_imap lexbuf =
-    assert (IMAP = Tok.get_tok @@ get_token lexbuf);
+    let t = get_token lexbuf in
+    let l = Tok.get_loc t in
+    assert (IMAP = Tok.get_tok t);
     let bar_state = !bar_starts_expr in
     bar_starts_expr := (Tok.get_tok @@ peek_token lexbuf) = BAR;
     let sh1 = parse_expr lexbuf in
@@ -370,11 +369,11 @@ and parse_imap lexbuf =
                       parse_err_loc (peek_loc lexbuf) "cell shape specification expected";
                   sh2
               end else
-                  Some (EArray ([])) in
+                  Some (mk_earray []) in
     let _ = expect_tok lexbuf LBRACE in
     bar_starts_expr := bar_state;
-    let l = parse_generic_list lexbuf parse_gen
-                               ~msg:"generator expected" in
+    let lst = parse_generic_list lexbuf parse_gen
+                                 ~msg:"generator expected" in
     let gl = List.map (fun x ->
                        match x with
                        | Some (FullGen (lb, x, ub), e) ->
@@ -383,9 +382,9 @@ and parse_imap lexbuf =
                                (* construct gen (out_shp * 0) <= x < out_shp *)
                                (mk_full_gen (opt_get sh1) x, e)
                        | _ -> raise (ImapFailure "error in parser function `parse_gen'"))
-                       l
+                       lst
              in
-    Some (EImap (opt_get sh1, opt_get sh2, gl))
+    Some (mk_eimap (opt_get sh1) (opt_get sh2) gl ~loc:l)
 
 and parse_gen lexbuf =
     let t = peek_token lexbuf in
