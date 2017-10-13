@@ -59,6 +59,10 @@ let rec list_split lst n =
 let eval_err msg =
     raise (EvalFailure msg)
 
+let eval_err_loc loc msg =
+    raise (EvalFailure (sprintf "%s: error: %s" (Loc.to_str loc) msg))
+
+
 
 let eval_warn msg =
     printf "warning: %s\n" msg
@@ -145,14 +149,14 @@ let idx_to_offset shp idx =
                  | _ -> array_element_type_finite st tl*)
 
 
-let ptr_binop st op p1 p2 =
+let ptr_binop st op p1 p2 loc1 loc2=
     let v1 = st_lookup st p1 in
     let v2 = st_lookup st p2 in
     if not @@ value_is_num v1 then
-        eval_err @@ sprintf "attempt to perform binary operation `%s' on non-number lhs `%s'"
+        eval_err_loc loc1 @@ sprintf "attempt to perform binary operation `%s' on non-number lhs `%s'"
                             (bop_to_str op) (value_to_str v1);
     if not @@ value_is_num v2 then
-        eval_err @@ sprintf "attempt to perform binary operation `%s' on non-number rhs `%s'"
+        eval_err_loc loc2 @@ sprintf "attempt to perform binary operation `%s' on non-number rhs `%s'"
                             (bop_to_str op) (value_to_str v2);
     let o1 = value_num_to_ord v1 in
     let o2 = value_num_to_ord v2 in
@@ -318,6 +322,7 @@ let check_parts_form_partition glb gub parts =
                                                            parts_to_cover);*)
                     _intersect parts_to_cover tl
                 else
+                    (* FIXME this error message needs location *)
                     eval_err @@ sprintf "partition ([%s], [%s]) is not within ([%s], [%s])"
                                 (val_lst_to_str lb) (val_lst_to_str ub)
                                 (val_lst_to_str glb) (val_lst_to_str gub)
@@ -444,11 +449,12 @@ let rec shape st env p =
             let v1 = st_lookup st p1 in
             let v2 = st_lookup st p2 in
             if not (value_is_array v1) then
+                (* XXX these error should be turned into assertion.  *)
                 eval_err @@ sprintf "frame shape of imap `%s' is not an array"
-                            @@ value_to_str v1
+                             @@ value_to_str v1
             else if not @@ value_is_array v2 then
                 eval_err @@ sprintf "element shape of imap `%s' is not an array"
-                            @@ value_to_str v2
+                             @@ value_to_str v2
             else begin
                 let s1, d1 = value_array_to_pair v1 in
                 let s2, d2 = value_array_to_pair v2 in
@@ -461,6 +467,7 @@ let rec shape st env p =
             let _, obj_shp_vec = value_array_to_pair obj_shp in
             let o =  match obj_shp_vec with
                       | VNum (x) :: [] -> x
+                             (* XXX these error should be turned into assertion.  *)
                       | _ -> eval_err @@ sprintf "invalid shape of object in filter `%s'"
                                                  @@ value_to_str @@ st_lookup st p
             in
@@ -528,14 +535,14 @@ and ptr_list_fst_shape st env ptrlst =
         let _, shp_vec = value_array_to_pair shp in
         (st, shp_vec)
 
-and ptr_unary st env op p1 =
+and ptr_unary st env op p1 loc =
     let v1 = st_lookup st p1 in
     match op with
     | OpShape ->
             shape st env p1
     | OpIsLim ->
             if not @@ value_is_num v1 then
-                eval_err @@ sprintf "attempt to apply islim to `%s'" @@ value_to_str v1;
+                eval_err_loc loc @@ sprintf "attempt to apply islim to `%s'" @@ value_to_str v1;
             if ord_is_lim @@ value_num_to_ord v1 then
                 (st, VTrue)
             else
@@ -553,6 +560,7 @@ and eval st env e =
             add_fresh_val_as_result st @@ mk_ord_value o
 
     | { expr_kind = EVar (x) } ->
+            (* FIXME add location information *)
             (st, (env_lookup env x))
 
     | { expr_kind = EArray (lst) } ->
@@ -561,10 +569,9 @@ and eval st env e =
             (* check that the shape of the elements is the same.  *)
             let st, shp_valid_p = array_element_shape_valid st env ptrlst in
             if not shp_valid_p then
-                eval_err @@ sprintf "elements of the array `%s' are of different shape"
-                            @@ expr_to_str e;
+                eval_err_loc e.loc "array elements are of different shapes";
             let st = List.fold_left (fun st p ->
-                                     force_obj_to_array st env p)
+                                     force_obj_to_array st env p e.loc)
                                     st ptrlst in
             (* get the data vector of the shape of the first element.  *)
             let st, shp_vec = ptr_list_fst_shape st env ptrlst in
@@ -599,19 +606,20 @@ and eval st env e =
 
             (* Check that the index is an array.  *)
             if not @@ value_is_array idx_val then
-                eval_err @@ sprintf "the index in `%s' selection must evaluate to an array, got `%s' instead"
-                                    (expr_to_str e) (value_to_str idx_val);
+                eval_err_loc e2.loc
+                         @@ sprintf "the index in selection must evaluate to an array, got `%s' instead"
+                                    (value_to_str idx_val);
 
             (* Check that shape of the index matches the shape of the object.  *)
             if dobj <> sidx then
-                eval_err @@ sprintf "shapes of lhs and index do not match in `%s' selection [%s] <> [%s]"
-                                    (expr_to_str e) (val_lst_to_str dobj) (val_lst_to_str sidx);
+                eval_err_loc e.loc @@ sprintf "shapes of selection lhs and index do not match: [%s] <> [%s]"
+                                          (val_lst_to_str dobj) (val_lst_to_str sidx);
 
             (* Check that the index is within the shape.  *)
             let _, idx_data = value_array_to_pair idx_val in
             if not @@ value_num_vec_lt idx_data sobj then
-                eval_err @@ sprintf "out of bound access in `%s' selection"
-                                    @@ expr_to_str e;
+                eval_err_loc e.loc @@ sprintf "out of bound access in `%s' selection"
+                                          @@ expr_to_str e;
 
             eval_selection st env p1 p2
 
@@ -626,11 +634,11 @@ and eval st env e =
     | { expr_kind = EBinOp (op, e1, e2) } ->
             let (st, p1) = eval st env e1 in
             let (st, p2) = eval st env e2 in
-            add_fresh_val_as_result st (ptr_binop st op p1 p2)
+            add_fresh_val_as_result st (ptr_binop st op p1 p2 e1.loc e2.loc)
 
     | { expr_kind = EUnary (op, e1) } ->
             let (st, p1) = eval st env e1 in
-            let st, v = ptr_unary st env op p1 in
+            let st, v = ptr_unary st env op p1 e1.loc in
             add_fresh_val_as_result st v
 
     | { expr_kind = ECond (e1, e2, e3) } ->
@@ -640,8 +648,9 @@ and eval st env e =
                 match v with
                 | VTrue -> eval st env e2
                 | VFalse -> eval st env e3
-                | _ -> eval_err @@ sprintf "predicate of `%s' evaluates to `%s' (true/false expected)"
-                                           (expr_to_str e) (value_to_str v)
+                | _ -> eval_err_loc e2.loc
+                                @@ sprintf "condition predicate evaluates to `%s' (true/false expected)"
+                                           (value_to_str v)
             end
 
     | { expr_kind = ELetRec (var, e1, e2) } ->
@@ -670,7 +679,7 @@ and eval st env e =
             (* FIXME we want this to be not just an array, but an array of
                      the right shape.  *)
             if not @@ value_is_array v1 then
-                eval_err @@
+                eval_err_loc e1.loc @@
                 sprintf "expected array as outer shape got `%s'"
                         @@ value_to_str v1;
             let shp_out_vec, data_out_vec = value_array_to_pair @@ st_lookup st p1 in
@@ -693,16 +702,16 @@ and eval st env e =
                                             []
                                         end) vg_expr_lst in
             if not @@ check_parts_form_partition lb data_out_vec vg_expr_lst then
-                eval_err @@ sprintf "partitions of `%s' do not fill the specified imap range ([%s], [%s])"
-                                    (expr_to_str e) (val_lst_to_str lb) (val_lst_to_str data_out_vec);
+                eval_err_loc e.loc
+                         @@ sprintf "partitions of the imap do not fill the specified imap range ([%s], [%s])"
+                                    (val_lst_to_str lb) (val_lst_to_str data_out_vec);
             if check_parts_intersect vg_expr_lst then
-                eval_err @@ sprintf "partitions of `%s' are not disjoint"
-                                    (expr_to_str e);
+                eval_err_loc e.loc "partitions of the imap are not disjoint";
 
             (* FIXME we want this to be not just an array, but an array of
                      the right shape.  *)
             if not @@ value_is_array v2 then
-                eval_err @@
+                eval_err_loc e2.loc @@
                 sprintf "expected array as inner shape got `%s'"
                         @@ value_to_str v2;
             let shp_in_vec, data_in_vec = value_array_to_pair @@ st_lookup st p2 in
@@ -721,24 +730,26 @@ and eval st env e =
             let (st, pfunc) = eval st env func in
             let (st, pneut) = eval st env neut in
             let (st, pa) = eval st env a in
-            if not @@ value_is_closure @@ st_lookup st pfunc then
-                eval_err @@ sprintf "expected function as a first argument of `%s'"
-                                    @@ expr_to_str e;
+            let vfunc = st_lookup st pfunc in
+            if not @@ value_is_closure vfunc then
+                eval_err_loc func.loc
+                         @@ sprintf "expected function as a first argument of reduction, got `%s'"
+                                    @@ value_to_str vfunc;
             eval_reduce st env pfunc pneut pa
 
     | { expr_kind = EFilter (func, obj) } ->
             let (st, pfunc) = eval st env func in
             let (st, pobj) = eval st env obj in
-            if not @@ value_is_closure @@ st_lookup st pfunc then
-                eval_err @@ sprintf "expected function as a first argument of `%s'"
-                                    @@ expr_to_str e;
-
+            let vfunc = st_lookup st pfunc in
+            if not @@ value_is_closure vfunc then
+                eval_err_loc func.loc
+                         @@ sprintf "expected function as a first argument of filter, got `%s'"
+                                    @@ value_to_str vfunc;
             let st, shp = shape st env pobj in
             let _, shp_vec = value_array_to_pair shp in
             let st, dim = dimension st env pobj in
             if dim <> one then
-                eval_err @@ sprintf "expected dimension of the second argument of `%s' to be 1"
-                                    @@ expr_to_str e;
+                eval_err_loc e.loc "expected dimension of the second argument of filter to be 1";
 
             let st, p = add_fresh_val_as_result st @@ mk_filter_value pfunc pobj [] in
             if List.for_all (fun x ->
@@ -779,7 +790,7 @@ and eval_obj_sel st env p_obj p_idx msg =
              (mk_esel (mk_evar "__obj") (mk_evar "__idx"))
     with
         EvalFailure m ->
-            printf "error: `%s'\n" m;
+            (*printf "error: `%s'\n" m;*)
             eval_err msg
 
 (* Make actual selection assuming that shapes of the object and index match.  *)
@@ -899,7 +910,7 @@ and eval_selection st env p1 p2 =
                     let st = st_update st p1 @@ VFilter (pfunc, pobj, (lim_ord, res, max) :: parts) in
                     add_fresh_val_as_result st v
 
-    (*| _ -> eval_err "invalid selection object"*)
+    (*| _ -> eval_err_loc "invalid selection object"*)
 
 (* evaluate a list of expressions propagating storage at every recursive call;
    return a tuple: (last storage, list of pointers)  *)
@@ -915,7 +926,7 @@ and eval_expr_lst st env lst =
 
 (* FIXME this is a generic function that can be used instead
          of force_imap and force_filter.  *)
-and force_obj_to_array st env p =
+and force_obj_to_array st env p loc =
     let st, shp_p = shape st env p in
     let _, shp_vec = value_array_to_pair shp_p in
     let v = st_lookup st p in
@@ -929,8 +940,8 @@ and force_obj_to_array st env p =
     else if not @@ List.for_all (fun x ->
                                  value_num_compare x (mk_ord_value omega) = -1)
                                 shp_vec then
-        eval_err @@ sprintf "forcing elements of `%s' does not terminate"
-                    @@ (value_to_str @@ st_lookup st p)
+        eval_err_loc loc @@ sprintf "forcing elements of `%s' does not terminate"
+                        @@ (value_to_str @@ st_lookup st p)
     else
         let lb = List.map (fun x -> mk_int_value 0) shp_vec in
         let rec _force st idx_it lb ub p res =
@@ -940,6 +951,7 @@ and force_obj_to_array st env p =
                 let idx = get_iterator_idx idx_it in
                 let p_idx = fresh_ptr_name () in
                 let st = st_add st p_idx @@ mk_vector idx in
+                (* FIXME pass location throught the error message.  *)
                 let st, p_el = eval_obj_sel st env p p_idx
                                @@ sprintf "force_obj_to_array (%s).[%s] failed"
                                   (value_to_str @@ st_lookup st p) (val_lst_to_str idx) in
@@ -965,7 +977,7 @@ and eval_gen_expr_lst st env idx_shp_vec ge_lst =
     match ge_lst with
     | [] ->
             (st, [])
-    | ((lb, var, ub) as g, e) :: tl ->
+    | ((lb, var, ub), e) :: tl ->
             let st, p1 = eval st env lb in
             let st, p2 = eval st env ub in
             let st, shp_p1 = shape st env p1 in
@@ -976,20 +988,18 @@ and eval_gen_expr_lst st env idx_shp_vec ge_lst =
             let v2 = st_lookup st p2 in
 
             if shp_p1 <> mk_vector idx_shp_vec then
-                eval_err @@ sprintf "wrong shape for lower bound of `%s: %s-element vector expected"
-                                    (gen_to_str g) (val_lst_to_str idx_shp_vec);
+                eval_err_loc lb.loc @@ sprintf "wrong shape for the lower bound: %s-element vector expected"
+                                   (val_lst_to_str idx_shp_vec);
 
             if shp_p2 <> mk_vector idx_shp_vec then
-                eval_err @@ sprintf "wrong shape for upper bound of `%s: %s-element vector expected"
-                                    (gen_to_str g) (val_lst_to_str idx_shp_vec);
+                eval_err_loc ub.loc @@ sprintf "wrong shape for the upper bound: %s-element vector expected"
+                                   (val_lst_to_str idx_shp_vec);
 
             if List.for_all (fun x -> value_num_compare x (mk_ord_value omega) <> -1) shp_p1_vec then
-                 eval_err @@ sprintf "lower bound of generator `%s' is not of finnite shape"
-                                     @@ gen_to_str g;
+                eval_err_loc lb.loc "lower bound is not of a finnite shape";
 
             if List.for_all (fun x -> value_num_compare x (mk_ord_value omega) <> -1) shp_p2_vec then
-                 eval_err @@ sprintf "upper bound of generator `%s' is not of finnite shape"
-                                     @@ gen_to_str g;
+                eval_err_loc ub.loc "upper bound of is not of finnite shape";
 
             (* Force evaluation of the lower-bound imap expression into array.  *)
             let st = if value_is_imap v1 then
@@ -1010,11 +1020,9 @@ and eval_gen_expr_lst st env idx_shp_vec ge_lst =
             let v2 = st_lookup st p2 in
 
             if not @@ value_is_array v1 then
-                eval_err @@ sprintf "lower bound of generator `%s' is not array"
-                                    @@ gen_to_str g;
+                eval_err_loc lb.loc "lower bound is not array";
             if not (value_is_array v2) then
-                eval_err (sprintf "upper bound of generator `%s' is not array"
-                                  (gen_to_str g));
+                eval_err_loc ub.loc "upper bound is not array";
             let st, res = eval_gen_expr_lst st env idx_shp_vec tl in
             (st, ((v1, var, v2), EPexpr (e)) :: res)
 
@@ -1156,6 +1164,7 @@ and filter_step_full_part st env pobj pfunc lim_ord idx max res =
             filter_step_full_part
                 st env pobj pfunc lim_ord (idx+1) max res
         else
+            (* FIXME clarify the error message *)
             eval_err "true/false expected in function application in filter"
 
 

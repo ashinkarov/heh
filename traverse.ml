@@ -69,6 +69,6 @@ let rec app_to_hof e =
                  (List.map (fun ge -> let (g, e) = ge in
                                       let (lb, var, ub) = g in
                                       ((app_to_hof lb, var, app_to_hof ub), app_to_hof e))
-                           gelst)
+                           gelst) ~loc:l
     | _ -> e
 

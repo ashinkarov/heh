@@ -46,7 +46,7 @@ let test_eval_imap _ =
         eval_prog prg03
     in
     assert_raises (EvalFailure
-                   "out of bound access in `((a).([10]))' selection")
+                   ":1:55: error: out of bound access in `((a).([10]))' selection")
                   try_out_of_bound;
 
     (* Partition out of bounds.  *)
@@ -64,8 +64,7 @@ let test_eval_imap _ =
                    "               [6] <= iv < [10]: 2 ")
 
     in
-    let err_msg = "partitions of " ^
-                  "`imap ([10])|[] { [0] <= iv < [5]: (1), [6] <= iv < [10]: (2)' " ^
+    let err_msg = ":1:1: error: partitions of the imap " ^
                   "do not fill the specified imap range ([0], [10])" in
     assert_raises (EvalFailure err_msg)
                   try_poor_partitioning;
