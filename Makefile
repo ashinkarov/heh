@@ -1,11 +1,12 @@
-OCB := ocamlbuild -j 8 -use-ocamlfind -use-menhir
+OCB := ocamlbuild -j 8 -use-ocamlfind
 
 SRC := ast.ml \
        value.ml \
        valueops.ml \
        main.ml \
+       loc.ml \
        lexer.mll \
-       parser.mly \
+       parser.ml \
        ordinals.ml \
        storage.ml \
        env.ml \
@@ -38,6 +39,10 @@ main.native: $(SRC)
 
 test.native: $(TEST_SRC) $(SRC)
 	$(OCB) -package oUnit -I tests test.native
+
+test.d.byte: $(TEST_SRC) $(SRC)
+	$(OCB) -package oUnit -I tests test.d.byte
+
 
 main.d.byte: $(SRC)
 	$(OCB)  main.d.byte

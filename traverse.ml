@@ -21,35 +21,54 @@ open Ast
    into EReduce and EFilter constructs. *)
 let rec app_to_hof e =
     match e with
-    | EApply (EApply (EApply (EVar ("reduce"), e1), e2), e3) ->
-        EReduce (e1, e2, e3)
-    | EApply (EApply (EVar ("filter"), e1), e2) ->
-        EFilter (e1, e2)
-    | EVar ("reduce") ->
-        raise (ImapFailure "reduce found with less than three arguments")
-    | EVar ("filter") ->
-        raise (ImapFailure "filter found with less than two arguments")
-    | EApply (e1, e2) ->
-        EApply (app_to_hof e1, app_to_hof e2)
-    | ESel (e1, e2) ->
-        ESel (app_to_hof e1, app_to_hof e2)
-    | EArray (lst) ->
-        EArray (List.map app_to_hof lst)
-    | EBinOp (bop, e1, e2) ->
-        EBinOp (bop, app_to_hof e1, app_to_hof e2)
-    | EUnary (uop, e1) ->
-        EUnary (uop, app_to_hof e1)
-    | ELambda (x, e1) ->
-        ELambda (x, app_to_hof e1)
-    | ECond (e1, e2, e3) ->
-        ECond (app_to_hof e1, app_to_hof e2, app_to_hof e3)
-    | ELetRec (x, e1, e2) ->
-        ELetRec (x, app_to_hof e1, app_to_hof e2)
-    | EImap (e1, e2, gelst) ->
-        EImap (app_to_hof e1, app_to_hof e2,
-               (List.map (fun ge -> let (g, e) = ge in
-                                    let (lb, var, ub) = g in
-                                    ((app_to_hof lb, var, app_to_hof ub), app_to_hof e))
-                         gelst))
+    | { expr_kind =
+        EApply ({ expr_kind =
+        EApply ({ expr_kind =
+        EApply ({ expr_kind =
+        EVar ("reduce")}, e1)}, e2)}, e3) } ->
+        mk_ereduce e1 e2 e3
+
+    | { expr_kind =
+        EApply ({ expr_kind =
+        EApply ({ expr_kind =
+        EVar ("filter")}, e1)}, e2) } ->
+        mk_efilter e1 e2
+
+    | { expr_kind = EVar ("reduce"); loc=l } ->
+        Parser.parse_err_loc l "reduce found with less than three arguments"
+
+    | { expr_kind = EVar ("filter"); loc=l } ->
+        Parser.parse_err_loc l "filter found with less than two arguments"
+
+    | { expr_kind = EApply (e1, e2) } ->
+        mk_eapply (app_to_hof e1) (app_to_hof e2)
+
+    | { expr_kind = ESel (e1, e2) } ->
+        mk_esel (app_to_hof e1) (app_to_hof e2)
+
+    | { expr_kind = EArray (lst); loc = l } ->
+        mk_earray (List.map app_to_hof lst) ~loc:l
+
+    | { expr_kind = EBinOp (bop, e1, e2) } ->
+        mk_ebinop bop (app_to_hof e1) (app_to_hof e2)
+
+    | { expr_kind = EUnary (uop, e1); loc = l} ->
+        mk_eunary uop (app_to_hof e1) ~loc:l
+
+    | { expr_kind = ELambda (x, e1); loc = l } ->
+        mk_elambda x (app_to_hof e1) ~loc:l
+
+    | { expr_kind = ECond (e1, e2, e3); loc = l } ->
+        mk_econd (app_to_hof e1) (app_to_hof e2) (app_to_hof e3) ~loc:l
+
+    | { expr_kind = ELetRec (x, e1, e2); loc = l } ->
+        mk_eletrec x (app_to_hof e1) (app_to_hof e2) ~loc:l
+
+    | { expr_kind = EImap (e1, e2, gelst); loc = l } ->
+        mk_eimap (app_to_hof e1) (app_to_hof e2)
+                 (List.map (fun ge -> let (g, e) = ge in
+                                      let (lb, var, ub) = g in
+                                      ((app_to_hof lb, var, app_to_hof ub), app_to_hof e))
+                           gelst) ~loc:l
     | _ -> e
 

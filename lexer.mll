@@ -14,10 +14,114 @@
  * PERFORMANCE OF THIS SOFTWARE.
  *)
 
+
 {
-open Parser
 open Lexing
 open Ast
+
+
+type token =
+  | UNDERSCORE
+  | TRUE
+  | THEN
+  | RSQUARE
+  | RPAREN
+  | PLUS
+  | OMEGA
+  | NE
+  | MULT
+  | MOD
+  | MINUS
+  | LT
+  | LSQUARE
+  | LPAREN
+  | LETREC
+  | LE
+  | LBRACE
+  | LAMBDA
+  | ISLIM
+  | INT of (int)
+  | IN
+  | IMAP
+  | IF
+  | ID of (string)
+  | GT
+  | GE
+  | FALSE
+  | EQ
+  | EOF
+  | ELSE
+  | DOT
+  | DIV
+  | COMMA
+  | COLON
+  | BAR
+
+
+let tok_to_str = function
+  | UNDERSCORE -> "_"
+  | TRUE -> "true"
+  | THEN -> "then"
+  | RSQUARE -> "]"
+  | RPAREN -> ")"
+  | PLUS -> "+"
+  | OMEGA -> "ω"
+  | NE -> "<>"
+  | MULT -> "*"
+  | MOD -> "%"
+  | MINUS -> "-"
+  | LT -> "<"
+  | LSQUARE -> "["
+  | LPAREN -> "("
+  | LETREC -> "letrec"
+  | LE -> "<="
+  | LBRACE -> "{"
+  | LAMBDA -> "λ"
+  | ISLIM -> "islim"
+  | INT (x) -> string_of_int x
+  | IN -> "in"
+  | IMAP -> "imap"
+  | IF -> "if"
+  | ID (x) -> x
+  | GT -> ">"
+  | GE -> ">="
+  | FALSE -> "false"
+  | EQ -> "="
+  | EOF -> "EOF"
+  | ELSE -> "else"
+  | DOT -> "."
+  | DIV -> "/"
+  | COMMA -> ","
+  | COLON -> ":"
+  | BAR -> "|"
+
+let is_op ?(no_relop=false) tok = match tok with
+    | EQ
+    | NE
+    | LT
+    | GT
+    | GE
+    | PLUS
+    | MINUS
+    | MULT
+    | DIV
+    | MOD  -> true
+    | LE -> not no_relop
+    | _ -> false
+
+let op_to_binop tok = match tok with
+    | PLUS  -> OpPlus
+    | MINUS -> OpMinus
+    | MULT  -> OpMult
+    | DIV   -> OpDiv
+    | MOD   -> OpMod
+    | LT    -> OpLt
+    | GT    -> OpGt
+    | EQ    -> OpEq
+    | NE    -> OpNe
+    | GE    -> OpGe
+    | LE    -> OpLe
+    | _ -> raise (ImapFailure "op_to_binop: not a binary operation")
 
 }
 

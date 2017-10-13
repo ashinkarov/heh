@@ -1,16 +1,16 @@
 open OUnit
 open Test_ordinals
 open Test_storage
+open Test_parser
 open Test_env
+open Test_value
 open Test_lexi_next
 open Test_eval_reduce
 open Test_eval_imap
-open Test_value
 open Test_selection
 open Test_array
 open Test_shape
 open Test_force
-open Test_parser
 
 
 

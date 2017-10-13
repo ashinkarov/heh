@@ -175,7 +175,7 @@ let value_num_vec_in_vgen vec vgen =
 
 let value_closure_to_triple v =
     match v with
-    | VClosure (ELambda (x, body), env) ->
+    | VClosure ({ expr_kind = ELambda (x, body) }, env) ->
             (x, body, env)
     | _ ->
             value_err @@ sprintf "expected closure with abstraction, but got `%s' instead"

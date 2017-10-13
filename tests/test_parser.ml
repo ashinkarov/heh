@@ -8,11 +8,12 @@ open Globals
 
 let parse_prog prg =
     let lexbuf = Lexing.from_string prg in
-    Parser.prog Lexer.token lexbuf
+    fname := sprintf "prog: `%s'" prg;
+    Parser.prog lexbuf
 
 let test_parser _ =
     let prg = "f a.iv" in
-    let e = parse_prog prg in
-    assert_equal ~msg:(sprintf "test sel priority: `%s'" prg)
-                 (e)  (EApply (EVar "f", ESel (EVar "a", EVar "iv")))
+    let e1 = parse_prog prg in
+    let e2 = mk_eapply (mk_evar "f") (mk_esel (mk_evar "a") (mk_evar "iv")) in
+    (sprintf "test sel priority: `%s'" prg) @? (Ast.cmp_ast_noloc e1 e2)
 
