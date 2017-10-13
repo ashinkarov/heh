@@ -30,7 +30,6 @@ infinity.
 The following dependencies are required:
   * Ocaml version >= 4.3;
   * ocamlbuild
-  * menhir
   * oUnit _if you wan to run unittests_
 
 To build the interpreter run `make` within the top-level directory which by default
