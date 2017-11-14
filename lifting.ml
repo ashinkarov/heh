@@ -94,11 +94,6 @@ let fresh_var () =
 
 let rec lift m e =
     match e with
-    | {expr_kind = EFalse }
-    | {expr_kind = ETrue }
-    | {expr_kind = ENum _ }
-    | {expr_kind = EVar _ } ->
-            (m, e)
     | {expr_kind = ELambda (x1, e1) } ->
             let fv = free_vars StringSet.empty e in
             if StringSet.cardinal fv = 0 then
@@ -131,84 +126,12 @@ let rec lift m e =
                 let m = StringMap.add fresh1 (fvlist, (mk_app fvlist (mk_evar fresh))) m in*)
                 (* FIXME location. *)
                 (m, mk_app fvlist (mk_evar fresh))
-    | {expr_kind = EBinOp (op, e1, e2) } ->
-            let m, e1' = lift m e1 in
-            let m, e2' = lift m e2 in
-            (m, mk_ebinop op e1' e2')
-
-    | {expr_kind = EApply (e1, e2) } ->
-            let m, e1' = lift m e1 in
-            let m, e2' = lift m e2 in
-            (m, mk_eapply e1' e2')
-
-    | {expr_kind = ESel (e1, e2) } ->
-            let m, e1' = lift m e1 in
-            let m, e2' = lift m e2 in
-            (m, mk_esel e1' e2')
-
-    | {expr_kind = EFilter (e1, e2) } ->
-            let m, e1' = lift m e1 in
-            let m, e2' = lift m e2 in
-            (m, mk_esel e1' e2')
-
-    (* FIXME we can do better if x can be found within e1/e2. *)
-    | {expr_kind = ELetRec (x, e1, e2) } ->
-            let m, e1' = lift m e1 in
-            let m, e2' = lift m e2 in
-            (m, mk_eletrec x e1' e2')
-
-    | {expr_kind = EUnary (op, e1) } ->
-            let m, e1' = lift m e1 in
-            (m, mk_eunary op e1')
-
-    | {expr_kind = ECond (e1, e2, e3)} ->
-            let m, e1' = lift m e1 in
-            let m, e2' = lift m e2 in
-            let m, e3' = lift m e3 in
-            (m, mk_econd e1' e2' e3')
-
-    | {expr_kind = EReduce (e1, e2, e3)} ->
-            let m, e1' = lift m e1 in
-            let m, e2' = lift m e2 in
-            let m, e3' = lift m e3 in
-            (m, mk_ereduce e1' e2' e3')
-
-    | {expr_kind = EArray exprlst} ->
-            let rec iter m lst =
-                match lst with
-                | [] -> (m, [])
-                | e :: es ->
-                        let m, es' = iter m es in
-                        let m, e' = lift m e in
-                        (m , e' :: es')
-            in
-            let m, lst = iter m exprlst in
-            (m, mk_earray lst)
-
-    | {expr_kind = EImap (e1, e2, gelst)} ->
-            let m, e1' = lift m e1 in
-            let m, e2' = lift m e2 in
-            let rec iter m gelst =
-                match gelst with
-                | [] -> (m, [])
-                | g :: gs ->
-                        let (lb, x, ub), eb = g in
-                        let m, lb' = lift m lb in
-                        let m, ub' = lift m ub in
-                        let m, eb' = lift m eb in
-                        let m, gs' = iter m gs in
-                        (m, ((lb', x, ub'), eb') :: gs')
-            in
-            let m, gelst' = iter m gelst in
-            (m, mk_eimap e1' e2' gelst')
+    | _ ->
+            Traversal.topdown lift m e
 
 
 let rec propagate glob m e =
     match e with
-    | {expr_kind = EFalse }
-    | {expr_kind = ETrue }
-    | {expr_kind = ENum _ } ->
-            (m, e)
     | {expr_kind = EVar x1 } ->
             if StringMap.mem x1 m then
                 (m, StringMap.find x1 m)
@@ -225,8 +148,8 @@ let rec propagate glob m e =
                 (m, mk_elambda x1 e1')
     | {expr_kind = ELetRec (x1, e1, e2) } ->
             if (match e1.expr_kind with
-                             | EFalse | ETrue | EVar _ | ENum _  -> true
-                             | _ -> false)
+                | EFalse | ETrue | EVar _ | ENum _  -> true
+                | _ -> false)
             then begin
                 if StringMap.mem x1 m then
                     let m = StringMap.remove x1 m in
@@ -243,74 +166,8 @@ let rec propagate glob m e =
                 let m, e1' = propagate glob m e1 in
                 let m, e2' = propagate glob m e2 in
                 (m, mk_eletrec x1 e1' e2')
-
-    | {expr_kind = EBinOp (op, e1, e2) } ->
-            let m, e1' = propagate glob m e1 in
-            let m, e2' = propagate glob m e2 in
-            (m, mk_ebinop op e1' e2')
-
-    | {expr_kind = EApply (e1, e2) } ->
-            let m, e1' = propagate glob m e1 in
-            let m, e2' = propagate glob m e2 in
-            (m, mk_eapply e1' e2')
-
-    | {expr_kind = ESel (e1, e2) } ->
-            let m, e1' = propagate glob m e1 in
-            let m, e2' = propagate glob m e2 in
-            (m, mk_esel e1' e2')
-
-    | {expr_kind = EFilter (e1, e2) } ->
-            let m, e1' = propagate glob m e1 in
-            let m, e2' = propagate glob m e2 in
-            (m, mk_esel e1' e2')
-
-    | {expr_kind = EUnary (op, e1) } ->
-            let m, e1' = propagate glob m e1 in
-            (m, mk_eunary op e1')
-
-    | {expr_kind = ECond (e1, e2, e3)} ->
-            let m, e1' = propagate glob m e1 in
-            let m, e2' = propagate glob m e2 in
-            let m, e3' = propagate glob m e3 in
-            (m, mk_econd e1' e2' e3')
-
-    | {expr_kind = EReduce (e1, e2, e3)} ->
-            let m, e1' = propagate glob m e1 in
-            let m, e2' = propagate glob m e2 in
-            let m, e3' = propagate glob m e3 in
-            (m, mk_ereduce e1' e2' e3')
-
-    | {expr_kind = EArray exprlst} ->
-            let rec iter m lst =
-                match lst with
-                | [] -> (m, [])
-                | e :: es ->
-                        let m, es' = iter m es in
-                        let m, e' = propagate glob m e in
-                        (m , e' :: es')
-            in
-            let m, lst = iter m exprlst in
-            (m, mk_earray lst)
-
-    | {expr_kind = EImap (e1, e2, gelst)} ->
-            let m, e1' = propagate glob m e1 in
-            let m, e2' = propagate glob m e2 in
-            let rec iter m gelst =
-                match gelst with
-                | [] -> (m, [])
-                | g :: gs ->
-                        let (lb, x, ub), eb = g in
-                        let m, lb' = propagate glob m lb in
-                        let m, ub' = propagate glob m ub in
-                        let m, eb' = propagate glob m eb in
-                        let m, gs' = iter m gs in
-                        (m, ((lb', x, ub'), eb') :: gs')
-            in
-            let m, gelst' = iter m gelst in
-            (m, mk_eimap e1' e2' gelst')
-
-
-
+    | _ ->
+            Traversal.topdown (propagate glob) m e
 
 
 let xlift e =
