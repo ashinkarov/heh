@@ -58,6 +58,7 @@ let main =
     lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = !fname };
     let e = Parser.prog lexbuf in
     let e = Traverse.app_to_hof e in
+    Lifting.xlift e;
     printf "%s\n" (Print.expr_to_str e);
     let st, p = Eval.eval (Storage.st_new ()) (Env.env_new ()) e in
     if !print_storage_on then

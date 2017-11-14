@@ -13,6 +13,7 @@ SRC := ast.ml \
        eval.ml \
        globals.ml \
        traverse.ml \
+       lifting.ml \
        print.ml
 
 TEST_SRC := \
