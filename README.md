@@ -25,6 +25,47 @@ infinity.
 
 <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/a/ad/Heh.svg/700px-Heh.svg.png" width=250 alt="Heh -- the god of infinity"/>
 
+# Results and work in progress
+
+Currently, Heh demonstrates that the concept described in [this paper](https://arxiv.org/abs/1710.03832)
+can be implemented.  We have formalized semantics of the language [here](https://github.com/ashinkarov/heh/blob/master/semantics/lambda-omega-semantics.pdf).
+
+We have shown that the number of array equalities from various array algebras hold for infinite arrays as well.
+As an example, consider `drop |a| (a ++ b) == b`, where `a` and `b` are of infinite shape, `++` is
+concatenation over the first axis and `drop` is an inverse of `++`.
+
+Currently we are working on:
+  * Designing a type system for Heh.  The main challenge is to keep the type system decidable,
+    yet propagate as much of the shape information as possible.  Knowing shapes of all the arrays
+    statically vastly improves the runtime.  Currently we are investigating whether the
+    [SaC](http://www.sac-home.org/doku.php) approach of combining sub-typing and intersection types
+    is powerful enough.  Going full dependent types is an option, but we will use this if everything
+    else would fail.  Also, how excalty one needs to treat ordinals in types is far from obvious.
+    
+  * Compiling Heh.  If heh programs only use non-recursive finite imaps can be directly transformed
+    to SaC programs, which are known to deliver good performance.
+    
+    Infinite recursive imaps are more challenging.  We didn't fix representation for imaps at
+    runtime.  Most likely we want to treat them as hash-tables, where every entry stores a contiguous
+    piece of memory, representing an index subspace.
+    
+    Memory management is fun.  SaC uses reference counting, which is efficient in the strict and finite
+    array scenario.  Here, as imaps can be infinite and recursive, most likely we'd have to combine 
+    reference counting and garbage collection.
+    
+  * Proving programs in Heh.  Heh treats infinite structures without using co-induction.  It uses
+    transfinite induction instead.  Can we use this to take and advantage over co-inductive data structures
+    is not yet clear.
+    
+  * Streaming primitives.  We have seen that a number of streaming primitives can be implemented in Heh
+    right now.  Whether it is sufficient for all the streaming scenarios is not clear.  Also, we didn't
+    properly investigate how to treat finite streams.
+
+The above list is not exhaustive, and a number of open question still remain.
+In case you are interested in joining to research around Heh, please contact
+[Artem Shinkarov](mailto:artyom.shinkaroff@gmail.com).  We are open for collaboration.
+
+
 # Building the interpreter
 
 The following dependencies are required:
