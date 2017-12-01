@@ -657,6 +657,16 @@ and eval st env e =
             let pname = fresh_ptr_name () in
             let (st, p1) = eval st (env_add env var pname) e1 in
             let st = update_letrec_ptr st pname p1 in
+            (* Force imap in case force_lterec_imap is true,
+             * `p1` is an imap closure of a finite size.  *)
+            let st = let v = st_lookup st p1 in
+                     if  value_is_imap v
+                         && !force_letrec_imap
+                         && value_imap_is_finite st v then
+                         force_imap_to_array st p1
+                     else
+                         st
+            in
             eval st (env_add env var p1) e2
 
     | { expr_kind = EImap (e1, e2, ge_lst) } ->

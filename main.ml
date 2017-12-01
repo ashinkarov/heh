@@ -37,6 +37,9 @@ let arglist = [
         Arg.Set (print_storage_on),
         ": print storage at the end of evaluation");
 
+    ("-force-letrec-imap",
+        Arg.Set (force_letrec_imap),
+        ": force finite imap closures when evaluating letercs");
   ]
 
 let main =

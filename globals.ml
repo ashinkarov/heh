@@ -28,6 +28,12 @@ let memo_on = ref true
 (* Whether we evaluate imaps of finite shape strictly.  *)
 let finite_imap_strict_on = ref false
 
+(* Force imap closures when evaluating letrecs, given that
+ * the imap is finite.  That is if in expression `letrec x = e in ...`
+ * `e` evaluates to an imap closure and its shape is finite,
+ * turn `e` into strict array.  *)
+let force_letrec_imap = ref false
+
 (* Whether we print the storage after the result has been evaluated.  *)
 let print_storage_on = ref false
 
