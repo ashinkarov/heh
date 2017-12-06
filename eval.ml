@@ -732,7 +732,14 @@ and eval st env e =
                         as we have to finish evaluation of the enclosing letrec
                         firs, otherwise we won't have a binding to the recursive
                         pointer in the environment.  *)
-                eval_strict_imap st env p1 p2 vg_expr_lst
+                try
+                    eval_strict_imap st env p1 p2 vg_expr_lst
+                with
+                    StorageFailure s ->
+                        printf "recovering from strict imap evaluation of `%s'\n"
+                               (Print.expr_to_str e);
+                        add_fresh_val_as_result st @@ mk_imap_value p1 p2 vg_expr_lst env
+
             else
                 add_fresh_val_as_result st @@ mk_imap_value p1 p2 vg_expr_lst env
 
