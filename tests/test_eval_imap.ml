@@ -4,15 +4,8 @@ open Storage
 open Value
 open Valueops
 open Eval
-open Globals
 
-let eval_prog prg =
-    let lexbuf = Lexing.from_string prg in
-    fname := sprintf "prog: `%s'" prg;
-    let e = Parser.prog lexbuf in
-    let e = Traverse.app_to_hof e in
-    Eval.eval (Storage.st_new ()) (Env.env_new ()) e
-
+open Test_common
 
 
 let test_eval_imap _ =
