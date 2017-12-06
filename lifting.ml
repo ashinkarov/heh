@@ -130,7 +130,7 @@ let rec lift m e =
             Traversal.topdown lift m e
 
 
-let rec propagate glob m e =
+let rec propagate m e =
     match e with
     | {expr_kind = EVar x1 } ->
             if StringMap.mem x1 m then
@@ -141,10 +141,10 @@ let rec propagate glob m e =
             if StringMap.mem x1 m then
                 let v = StringMap.find x1 m in
                 let m = StringMap.remove x1 m in
-                let m, e1' = propagate glob m e1 in
+                let m, e1' = propagate m e1 in
                 (StringMap.add x1 v m, mk_elambda x1 e1')
             else
-                let m, e1' = propagate glob m e1 in
+                let m, e1' = propagate m e1 in
                 (m, mk_elambda x1 e1')
     | {expr_kind = ELetRec (x1, e1, e2) } ->
             if (match e1.expr_kind with
@@ -156,18 +156,18 @@ let rec propagate glob m e =
                     (* Add new mapping *)
                     let m = StringMap.add x1 e1 m in
                     (* Substitute e1 in the body of the letrec.  *)
-                    let m, e2' = propagate glob m e2 in
+                    let m, e2' = propagate m e2 in
                     (m, e2')
                 else
                     let m = StringMap.add x1 e1 m in
-                    let m, e2' = propagate glob m e2 in
+                    let m, e2' = propagate m e2 in
                     (m, e2')
             end else
-                let m, e1' = propagate glob m e1 in
-                let m, e2' = propagate glob m e2 in
+                let m, e1' = propagate m e1 in
+                let m, e2' = propagate m e2 in
                 (m, mk_eletrec x1 e1' e2')
     | _ ->
-            Traversal.topdown (propagate glob) m e
+            Traversal.topdown propagate m e
 
 
 let xlift e =
@@ -175,5 +175,7 @@ let xlift e =
     Printf.printf "globals\n";
     print_mapping m;
     Printf.printf "\n%s\n" (Print.expr_to_str e1);
-    let _, e1 = propagate [] StringMap.empty e1 in
-    Printf.printf "\n%s\n" (Print.expr_to_str e1)
+    Printf.printf "-----------------\n";
+    let _, e1 = propagate StringMap.empty e1 in
+    Printf.printf "\n%s\n" (Print.expr_to_str e1);
+    Printf.printf "-----------------\n"
