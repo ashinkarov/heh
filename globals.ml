@@ -39,6 +39,7 @@ let print_storage_on = ref false
 
 (* The name of the file we parse.  *)
 let fname = ref ""
+let fname_set = ref false
 
 (* Helper string that will be printed at the begining of the help message
    triggered by --help flag.  *)

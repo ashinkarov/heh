@@ -46,13 +46,16 @@ let main =
     Arg.parse_argv
         Sys.argv
         arglist
-        (fun x -> if !fname <> "" then
+        (fun x -> if !fname_set then
                     raise (ImapFailure "Multiple input files found on command line")
-                  else
-                    fname := x)
+                  else begin
+                      fname := x; fname_set := true
+                  end)
         usage;
 
-    let file = open_in !fname in
+    let file = if !fname_set
+               then open_in !fname
+               else stdin in
     let open Lexing in
     let lexbuf = from_channel file in
     lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = !fname };
