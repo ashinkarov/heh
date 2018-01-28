@@ -37,6 +37,10 @@ let force_letrec_imap = ref false
 (* Whether we print the storage after the result has been evaluated.  *)
 let print_storage_on = ref false
 
+(* Whether we lift lambdas and use them in evaluation.  *)
+let flag_lift_lambdas = ref false
+
+
 (* The name of the file we parse.  *)
 let fname = ref ""
 let fname_set = ref false

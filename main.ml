@@ -40,6 +40,11 @@ let arglist = [
     ("-force-letrec-imap",
         Arg.Set (force_letrec_imap),
         ": force finite imap closures when evaluating letercs");
+
+    ("-lift-lambdas",
+        Arg.Set (flag_lift_lambdas),
+        ": lift local functions and use them in the evaluation");
+
   ]
 
 let main =
@@ -61,9 +66,13 @@ let main =
     lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = !fname };
     let e = Parser.prog lexbuf in
     let _, e = Traverse.app_to_hof () e in
-    let st, env, e = Lifting.lift_lambdas e in
+    let st, env, e = 
+        if !flag_lift_lambdas then
+            Lifting.lift_lambdas e
+        else
+            (Storage.st_new (), Env.env_new (), e)
+    in
     printf "%s\n" (Print.expr_to_str e);
-    (*let st, p = Eval.eval (Storage.st_new ()) (Env.env_new ()) e in*)
     let st, p = Eval.eval st env e in
     if !print_storage_on then
         printf "%s\n" (Storage.st_to_str st);
