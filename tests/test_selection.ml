@@ -1,17 +1,9 @@
 open OUnit
 open Printf
 open Storage
-open Value
 open Valueops
-open Eval
-open Globals
 
-let eval_prog prg =
-    let lexbuf = Lexing.from_string prg in
-    fname := sprintf "prog: `%s'" prg;
-    let e = Parser.prog lexbuf in
-    let e = Traverse.app_to_hof e in
-    Eval.eval (Storage.st_new ()) (Env.env_new ()) e
+open Test_common
 
 let test_empty_selection _ =
     let prog = "5.[]" in
@@ -22,7 +14,7 @@ let test_empty_selection _ =
     let prog = "false.[]" in
     let st, p = eval_prog prog in
     assert_equal ~msg:(sprintf "empty selection: `%s'" prog)
-                 (st_lookup st p) (VFalse);
+                 (st_lookup st p) (mk_false_value);
 
     let prog = "(\\x.2).[] 1" in
     let st, p = eval_prog prog in

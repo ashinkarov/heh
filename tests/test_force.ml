@@ -1,18 +1,10 @@
 open OUnit
 open Printf
 open Storage
-open Value
 open Valueops
-open Eval
-open Globals
 open Ordinals
 
-let eval_prog prg =
-    let lexbuf = Lexing.from_string prg in
-    fname := sprintf "prog: `%s'" prg;
-    let e = Parser.prog lexbuf in
-    let e = Traverse.app_to_hof e in
-    Eval.eval (Storage.st_new ()) (Env.env_new ()) e
+open Test_common
 
 let test_force _ =
     let prg = "letrec p = 1 in letrec x = [p,p] in p" in

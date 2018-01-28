@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2017, Artem Shinkarov <artyom.shinkaroff@gmail.com>
+ * Copyright (c) 2017-2018, Artem Shinkarov <artyom.shinkaroff@gmail.com>
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -37,8 +37,13 @@ let force_letrec_imap = ref false
 (* Whether we print the storage after the result has been evaluated.  *)
 let print_storage_on = ref false
 
+(* Whether we lift lambdas and use them in evaluation.  *)
+let flag_lift_lambdas = ref false
+
+
 (* The name of the file we parse.  *)
 let fname = ref ""
+let fname_set = ref false
 
 (* Helper string that will be printed at the begining of the help message
    triggered by --help flag.  *)

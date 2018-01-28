@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2017, Artem Shinkarov <artyom.shinkaroff@gmail.com>
+ * Copyright (c) 2017-2018, Artem Shinkarov <artyom.shinkaroff@gmail.com>
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -100,7 +100,7 @@ let rec cmp_ast_noloc e1 e2 =
     | { expr_kind = ENum x }, { expr_kind = ENum y } -> x = y
     | { expr_kind = EVar x }, { expr_kind = EVar y } -> x = y
     | { expr_kind = EArray arr1 }, { expr_kind = EArray arr2 } ->
-            List.length arr1 = List.length arr2 
+            List.length arr1 = List.length arr2
             && (List.fold_left2 (fun res x y -> res && cmp_ast_noloc x y) true arr1 arr2)
     | { expr_kind = EBinOp (op1, x1, y1) }, { expr_kind = EBinOp (op2, x2, y2) } ->
             op1 = op2
@@ -133,7 +133,7 @@ let rec cmp_ast_noloc e1 e2 =
             && (List.fold_left2
                 (fun res ge1 ge2 ->
                     res
-                    && match ge1, ge2 with 
+                    && match ge1, ge2 with
                        | ((lb1, v1, ub1), e1), ((lb2, v2, ub2), e2) ->
                                v1 = v2
                                && cmp_ast_noloc lb1 lb2
@@ -147,7 +147,7 @@ let rec cmp_ast_noloc e1 e2 =
             cmp_ast_noloc x1 x2
             && cmp_ast_noloc y1 y2
             && cmp_ast_noloc z1 z2
-    
+
     | { expr_kind = EFilter (x1, y1) }, { expr_kind = EFilter (x2, y2) } ->
             cmp_ast_noloc x1 x2
             && cmp_ast_noloc y1 y2
