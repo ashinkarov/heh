@@ -1,3 +1,18 @@
+(*
+ * Copyright (c) 2017, Artem Shinkarov <artyom.shinkaroff@gmail.com>
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+ * REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+ * AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+ * INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+ * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+ * OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+ * PERFORMANCE OF THIS SOFTWARE.
+ *)
 
 open Ast
 
@@ -70,6 +85,11 @@ let print_free_vars e =
     Printf.printf "\n"
 
 
+let rec wrap_lambda lst e =
+    match lst with
+    | [] -> e
+    | x :: t -> Ast.mk_elambda x @@ wrap_lambda t e
+
 let rec lst_print l =
     match l with
     | [] -> ""
@@ -80,7 +100,11 @@ let print_mapping m =
         let varlist, expr = varlist_expr in
         Printf.printf "%s: Λ%s.%s\n" var (lst_print varlist) (Print.expr_to_str expr)
     in
-    StringMap.iter xprint m
+    let xprint1 var varlist_expr =
+        let varlist, expr = varlist_expr in
+        Printf.printf "%s: %s\n" var @@ Print.expr_to_str (wrap_lambda varlist expr)
+    in
+    StringMap.iter xprint1 m
 
 
 
@@ -89,7 +113,7 @@ let var_count = ref 0
 (* Generate a fresh variable name.  *)
 let fresh_var () =
     var_count := !var_count + 1;
-    Printf.sprintf "f%d" !var_count
+    Printf.sprintf "__f%d" !var_count
 
 
 let rec lift m e =
@@ -170,12 +194,32 @@ let rec propagate m e =
             Traversal.topdown propagate m e
 
 
-let xlift e =
-    let m, e1 = lift StringMap.empty e in
-    Printf.printf "globals\n";
+let lift_lambdas e =
+    let m, e = lift StringMap.empty e in
+    Printf.printf "--- lifting lambdas into global functions and updating the expression\n";
     print_mapping m;
-    Printf.printf "\n%s\n" (Print.expr_to_str e1);
-    Printf.printf "-----------------\n";
-    let _, e1 = propagate StringMap.empty e1 in
-    Printf.printf "\n%s\n" (Print.expr_to_str e1);
-    Printf.printf "-----------------\n"
+    let _, e = propagate StringMap.empty e in
+    (*
+     * Create an environment for all the functions, using the naming
+     * scheme for the pointers __p + <fun-name>.
+     *)
+    let env = Env.env_new () in
+    let env = StringMap.fold (fun var valist_expr env ->
+                              Env.env_add env var ("__p" ^ var))
+                             m
+                             env in
+    (*
+     * Create pointers for global functions.
+     *)
+    let st = Storage.st_new () in
+    let st = StringMap.fold (fun var varlist_expr st ->
+                             let varlist, expr = varlist_expr in
+                             Storage.st_add st ("__p" ^ var)
+                                            (* Include `env` in all the function closures
+                                             * so that they have access to all the global
+                                             * functions.
+                                             *)
+                                            @@ Value.VClosure ((wrap_lambda varlist expr), env))
+                            m
+                            st in
+    (st, env, e)
