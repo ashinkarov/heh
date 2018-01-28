@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2017, Artem Shinkarov <artyom.shinkaroff@gmail.com>
+ * Copyright (c) 2017-2018, Artem Shinkarov <artyom.shinkaroff@gmail.com>
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -66,7 +66,7 @@ let main =
     lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = !fname };
     let e = Parser.prog lexbuf in
     let _, e = Traverse.app_to_hof () e in
-    let st, env, e = 
+    let st, env, e =
         if !flag_lift_lambdas then
             Lifting.lift_lambdas e
         else
