@@ -47,9 +47,8 @@ let arglist = [
 
   ]
 
-let main =
-    Arg.parse_argv
-        Sys.argv
+let main () =
+    Arg.parse
         arglist
         (fun x -> if !fname_set then
                     raise (ImapFailure "Multiple input files found on command line")
@@ -79,4 +78,5 @@ let main =
     printf "res: %s = %s\n\n"  p (Print.value_to_str @@ Storage.st_lookup st p);
     close_in file
 
-let () = main
+let _ = main ()
+
