@@ -96,10 +96,10 @@ let rec lst_print l =
     | x :: xs -> Printf.sprintf "%s %s" x (lst_print xs)
 
 let print_mapping m =
-    let xprint var varlist_expr =
+    (*let xprint var varlist_expr =
         let varlist, expr = varlist_expr in
         Printf.printf "%s: Λ%s.%s\n" var (lst_print varlist) (Print.expr_to_str expr)
-    in
+    in*)
     let xprint1 var varlist_expr =
         let varlist, expr = varlist_expr in
         Printf.printf "%s: %s\n" var @@ Print.expr_to_str (wrap_lambda varlist expr)
