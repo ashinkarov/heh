@@ -29,7 +29,9 @@ let suite =
         ];
         "Storage testsuite" >:::
         [
-            "storage-test" >:: test_storage
+            "storage-test" >:: test_storage;
+            "free-variables" >:: test_free_vars;
+            "reference-counting" >:: test_rc
         ];
         "Parser testsuite" >:::
         [
@@ -48,7 +50,7 @@ let suite =
         [
             "lexi-next" >:: test_lexi_next
         ];
-        "Eval progrs" >:::
+        (*"Eval progrs" >:::
         [
             "eval-reduce" >:: test_eval_reduce;
             "eval-imap" >:: test_eval_imap;
@@ -59,7 +61,7 @@ let suite =
             "test-imm-array" >:: test_imm_array;
             "test-shape" >:: test_shape;
             "test-force" >:: test_force;
-        ];
+        ];*)
     ]
 
 let _ =

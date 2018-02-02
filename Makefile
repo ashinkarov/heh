@@ -19,6 +19,7 @@ SRC := ast.ml \
 
 TEST_SRC := \
        tests/test.ml \
+       tests/test_common.ml \
        tests/test_ordinals.ml \
        tests/test_storage.ml \
        tests/test_env.ml \

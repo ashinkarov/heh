@@ -40,3 +40,9 @@ and expr_or_ptr =
 let value_err msg =
     raise (ValueFailure msg)
 
+let value_is_lazy v =
+    match v with
+    | VClosure (_, _)
+    | VImap (_, _, _, _)
+    | VFilter (_, _, _) -> true
+    | _ -> false

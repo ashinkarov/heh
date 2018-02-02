@@ -76,6 +76,7 @@ let main () =
     if !print_storage_on then
         printf "%s\n" (Storage.st_to_str st);
     printf "res: %s = %s\n\n"  p (Print.value_to_str @@ Storage.st_lookup st p);
+    Storage.final_storage_consistent st p;
     close_in file
 
 let _ = main ()

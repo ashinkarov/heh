@@ -176,27 +176,6 @@ let ptr_binop st op p1 p2 loc1 loc2=
               if cmp = 1 || cmp = 0 then VTrue else VFalse
 
 
-
-(* update all the enclosed environments of the storage replacing bindings of
-   form x |-> pold with x |-> pnew.  *)
-let update_letrec_ptr st pold pnew =
-    let rec env_updater env =
-        match env with
-        | [] -> []
-        | (x, p) :: tl -> (if p = pold then (x, pnew) else (x, p))
-                          :: env_updater tl
-    in
-    let value_updater k v =
-        let res = match v with
-                  | VClosure (x, env) -> VClosure (x, env_updater env)
-                  | VImap (p1, p2, parts, env) -> VImap (p1, p2, parts, env_updater env)
-                  | _ -> v
-        in Some (res)
-    in
-    Hashtbl.filter_map_inplace value_updater st;
-    st
-
-
 (* Extract lb-ub pairs from the list of partitions as it is stored in
    in the VImap.  The `lb' and `ub' are lower bound and upper bound of
    a partition.  The type of `lb' and `ub' is a list of values.  *)
@@ -365,7 +344,7 @@ let check_parts_intersect parts =
 
 (* Split the `part_idx' partition of the imap at index `idx_vec'
    binding the value at `idx_vec' to ptr.  *)
-let update_imap_part st imap_ptr idx_vec ptr =
+let update_imap_part (st: storage) imap_ptr idx_vec ptr =
     (* Remove partition #idx_part from parts and append parts1.  *)
     let replace parts idx_part parts1 =
         let l, r = list_split parts idx_part in
@@ -400,9 +379,9 @@ let update_imap_part st imap_ptr idx_vec ptr =
     st_update st imap_ptr imap'
 
 
-let add_fresh_val_as_result st v =
+let add_fresh_val_as_result st rc v =
     let p = fresh_ptr_name () in
-    let st = st_add st p v in
+    let st = st_add st p rc v in
     (st, p)
 
 
@@ -462,7 +441,7 @@ let rec shape st env p =
                 (st, v)
             end
 
-    | VFilter (pfunc, pobj, parts) ->
+    (*| VFilter (pfunc, pobj, parts) ->
             let st, obj_shp = shape st env pobj in
             let _, obj_shp_vec = value_array_to_pair obj_shp in
             let o =  match obj_shp_vec with
@@ -491,7 +470,8 @@ let rec shape st env p =
                 else
                     let st = st_update st p (VFilter (pfunc, pobj, (l, [], 0) :: parts)) in
                     let st, p = force_filter_last_part st env p in
-                    shape st env p
+                    shape st env p *)
+    | _ -> eval_err "shape is not implemented for filters" 
 
 (* Number of dimensions in the array.
    We assume that the value is always finite (< w), but we use ordinal type to return
@@ -551,13 +531,13 @@ and ptr_unary st env op p1 loc =
 and eval st env e =
     match e with
     | { expr_kind = EFalse } ->
-            add_fresh_val_as_result st @@ mk_false_value
+            add_fresh_val_as_result st 1 @@ mk_false_value
 
     | { expr_kind = ETrue } ->
-            add_fresh_val_as_result st @@ mk_true_value
+            add_fresh_val_as_result st 1 @@ mk_true_value
 
     | { expr_kind = ENum (o) } ->
-            add_fresh_val_as_result st @@ mk_ord_value o
+            add_fresh_val_as_result st 1 @@ mk_ord_value o
 
     | { expr_kind = EVar (x) } ->
             (* FIXME add location information *)
@@ -584,17 +564,29 @@ and eval st env e =
                              | _ -> List.append [ptr_val] val_lst)
 
                             ptrlst [] in
-            add_fresh_val_as_result st @@ mk_array_value shp data
+            let st = List.fold_left (fun st p -> st_decrc st p) st ptrlst in
+            (* FIXME here we need to check the type of the value.
+             *       If it it is a closure we need to create an
+             *       array that keeps pointers rather than array of
+             *       values.  Otherwise if a closure is a recursive
+             *       function/array, we need to keep the pointer alive
+             *       till it is being used.
+             *)
+            assert (if List.length data > 0
+                    then not @@ value_is_closure @@ List.hd data
+                    else true);
+            add_fresh_val_as_result st 1 @@ mk_array_value shp data
 
     | { expr_kind = ELambda (_, _) } ->
-            add_fresh_val_as_result st @@ mk_closure_value e env
+            add_fresh_val_as_result st 1 @@ mk_closure_value e env
 
     | { expr_kind = ESel (e1, e2) } ->
             let (st, p1) = eval st env e1 in
             let (st, p2) = eval st env e2 in
             (* force evaluation of the index if it is an imap.  *)
             let st = if value_is_imap (st_lookup st p2) then
-                       force_imap_to_array st p2
+                       (*force_imap_to_array st p2*)
+                       force_obj_to_array st env p2 e2.loc
                      else
                        st
             in
@@ -629,25 +621,44 @@ and eval st env e =
             (*printf "--[eval-app/selection] `%s' `%s'\n"
                    (value_to_str @@ st_lookup st p1) (value_to_str @@ st_lookup st p2);*)
             let var, body, env' = value_closure_to_triple (st_lookup st p1) in
-            eval st (env_add env' var p2) body
+            (* Increase reference count for the argument.  *)
+            let st = st_incrc_func_arg st p2 var body in
+            (* Increase reference count for free variables in the function.  *)
+            let st = st_incrc_func_fv st env' var body in
+            let st, pres = eval st (env_add env' var p2) body in
+            let st = st_decrc st p1 in
+            st, pres
 
     | { expr_kind = EBinOp (op, e1, e2) } ->
             let (st, p1) = eval st env e1 in
             let (st, p2) = eval st env e2 in
-            add_fresh_val_as_result st (ptr_binop st op p1 p2 e1.loc e2.loc)
+            let st, pres = add_fresh_val_as_result st 1 (ptr_binop st op p1 p2 e1.loc e2.loc) in
+            let st = st_decrc st p1 in
+            let st = st_decrc st p2 in
+            st, pres
+
 
     | { expr_kind = EUnary (op, e1) } ->
             let (st, p1) = eval st env e1 in
             let st, v = ptr_unary st env op p1 e1.loc in
-            add_fresh_val_as_result st v
+            let st = st_decrc st p1 in
+            add_fresh_val_as_result st 1 v
 
     | { expr_kind = ECond (e1, e2, e3) } ->
             let (st, p1) = eval st env e1 in
             let v = st_lookup st p1 in
             begin
                 match v with
-                | VTrue -> eval st env e2
-                | VFalse -> eval st env e3
+                | VTrue -> 
+                        let st = st_decrc_fv st env e3 in
+                        let st, pres = eval st env e2 in
+                        let st = st_decrc st p1 in
+                        st, pres
+                | VFalse ->
+                        let st = st_decrc_fv st env e2 in
+                        let st, pres = eval st env e3 in
+                        let st = st_decrc st p1 in
+                        st, pres
                 | _ -> eval_err_loc e2.loc
                                 @@ sprintf "condition predicate evaluates to `%s' (true/false expected)"
                                            (value_to_str v)
@@ -655,21 +666,32 @@ and eval st env e =
 
     | { expr_kind = ELetRec (var, e1, e2) } ->
             let pname = fresh_ptr_name () in
+            (* We add a binding to bottom value so that we can accumulate
+             * the number of references that this value will have.
+             * Specifically this is needed in self-applications:
+             *     letrec f = \f.\x.f f x in
+             *     letrec g = f g
+             *)
+            let st = st_add_bottom st pname 1 in
             let (st, p1) = eval st (env_add env var pname) e1 in
+            (* TODO delete the pname pointer.  *)
             let st = update_letrec_ptr st pname p1 in
+            let st = st_incrc_func_arg st p1 var e2 in
             (* Force imap in case force_lterec_imap is true,
              * `p1` is an imap closure of a finite size.  *)
-            let st = let v = st_lookup st p1 in
+            (*let st = let v = st_lookup st p1 in
                      if  value_is_imap v
                          && !force_letrec_imap
                          && value_imap_is_finite st v then
                          force_imap_to_array st p1
                      else
                          st
-            in
+            in*)
             eval st (env_add env var p1) e2
 
-    | { expr_kind = EImap (e1, e2, ge_lst) } ->
+    | _ -> eval_err "not implemented"
+
+    (*| { expr_kind = EImap (e1, e2, ge_lst) } ->
             let st, p1 = eval st env e1 in
             let st, p2 = eval st env e2 in
             (* force evaluation of the outer shape in case it is an imap.  *)
@@ -770,7 +792,7 @@ and eval st env e =
                 (st, p)
             else
                 (st, p)
-
+*)
 
 and eval_bin_app st env p_func p_arg1 p_arg2 msg =
     try
@@ -812,11 +834,26 @@ and eval_selection st env p1 p2 =
     | VFalse
     | VClosure (_, _)
     | VNum (_) ->
+            (* We decrease refernce count of both p1 and p2
+             * and create a new pointer of refcount one.
+             * In case of closures storing recursive functions
+             * this doesn't really work, as we'll have to copy
+             * all the functions on a recursive cycle.
+             *
+             * For now, we avoid reference decrement on `p1` with
+             * futher creation of a new pointer pointing to the same
+             * value.  We just decrease reference count of `p2`.
+             *)
+            let st = st_decrc st p2 in
             (st, p1)
+
     | VArray (shp_vec, data_vec) ->
             let offset = idx_to_offset shp_vec idx_data_vec in
             let v = List.nth data_vec offset in
-            add_fresh_val_as_result st v
+            (* Decrement reference count on `p1` and `p2`.  *)
+            let st = st_decrc st p1 in
+            let st = st_decrc st p2 in
+            add_fresh_val_as_result st 1 v
 
     | VImap (po, pi, parts, env') ->
             let vo_shp, vo_data = value_array_to_pair @@ st_lookup st po in
@@ -832,11 +869,19 @@ and eval_selection st env p1 p2 =
             let (st, ptr_out) = match e with
             (* if value at idx_o is already computed  *)
             | EPptr (p) ->
+                    (* We need to increase the reference count of `p`
+                     * as there is an upcoming selection into it.
+                     *)
+                    let st = st_incrc st p in
                     (st, p)
             (* if value at idx_o is not computed  *)
             | EPexpr (e) ->
                     let _, var, _ = vg in
-                    let st, idx_o_ptr = add_fresh_val_as_result st @@ mk_array_value vo_shp idx_o in
+                    let st, idx_o_ptr = add_fresh_val_as_result st 1 @@ mk_array_value vo_shp idx_o in
+                    (* increase reference count of free variables in e *)
+                    let st = st_incrc_func_fv st env' var e in
+                    (* increase reference count of `idx_o_ptr` as an argument to `e` *)
+                    let st = st_incrc_func_arg st idx_o_ptr var e in
                     let st, p = eval st (env_add env' var idx_o_ptr) e in
                     (* split partition and update imap *)
                     if !memo_on then
@@ -849,10 +894,18 @@ and eval_selection st env p1 p2 =
             debug @@
             sprintf "--[imap-sel] inner imap selection: `%s' at [%s]"
                     (value_to_str @@ st_lookup st ptr_out) (val_lst_to_str idx_i);
-            let st, pidx = add_fresh_val_as_result st @@ mk_array_value vi_shp idx_i in
-            eval_obj_sel st env' ptr_out pidx
+            let st, pidx = add_fresh_val_as_result st 1 @@ mk_array_value vi_shp idx_i in
+            (* This inner selection should not affect the reference count of
+             * ptr_out, so we increase it by one.
+             *)
+            let st = st_incrc st ptr_out in
+            let st, pres =
+                eval_obj_sel st env' ptr_out pidx
                          @@ sprintf "failed to perform inner imap selection `%s' at [%s]"
-                                    (value_to_str @@ st_lookup st ptr_out) (val_lst_to_str idx_i)
+                                    (value_to_str @@ st_lookup st ptr_out) (val_lst_to_str idx_i) in
+            let st = st_decrc st p1 in
+            let st = st_decrc st p2 in
+            st, pres
 
     | VFilter (pfunc, pobj, parts) ->
             let rec filter_step st pobj lb ub idx_it res n max =
@@ -862,9 +915,11 @@ and eval_selection st env p1 p2 =
                     (res, max)
                 else
                     let idx = get_iterator_idx idx_it in
-                    let st, idx_ptr = add_fresh_val_as_result st @@ mk_array_value idx_shp_vec idx in
+                    let st, idx_ptr = add_fresh_val_as_result st 1 @@ mk_array_value idx_shp_vec idx in
+                    let st = st_incrc st pobj in
                     let st, p_el = eval_obj_sel st env pobj idx_ptr
                                                 "filter slection failed" in
+                    let st = st_incrc st pfunc in
                     let st, pbool = eval_unary_app st env pfunc p_el "filter fun app failed" in
                     let vbool = st_lookup st pbool in
                     if value_is_true vbool then
@@ -902,7 +957,10 @@ and eval_selection st env p1 p2 =
                 if part_idx <> -1 then
                     let _, val_lst, max = List.nth parts part_idx in
                     if n < max then
-                        add_fresh_val_as_result st (List.nth val_lst n)
+                        (* Decrease reference count of filter and index.  *)
+                        let st = st_decrc st p1 in
+                        let st = st_decrc st p2 in
+                        add_fresh_val_as_result st 1 (List.nth val_lst n)
                     else
                         let res, max = filter_step
                                        st pobj [mk_int_value 0] obj_shp_vec
@@ -910,7 +968,10 @@ and eval_selection st env p1 p2 =
                                        val_lst n max in
                         let v = List.nth res n in
                         let st = update_filter_parts st p1 part_idx (lim_ord, res, max) in
-                        add_fresh_val_as_result st v
+                        (* Decrease reference count of filter and index.  *)
+                        let st = st_decrc st p1 in
+                        let st = st_decrc st p2 in
+                        add_fresh_val_as_result st 1 v
                 else
                     let res, max = filter_step
                                    st pobj [mk_int_value 0] obj_shp_vec
@@ -918,7 +979,10 @@ and eval_selection st env p1 p2 =
                                    [] n 0 in
                     let v = List.nth res n in
                     let st = st_update st p1 @@ VFilter (pfunc, pobj, (lim_ord, res, max) :: parts) in
-                    add_fresh_val_as_result st v
+                    (* Decrease reference count of filter and index.  *)
+                    let st = st_decrc st p1 in
+                    let st = st_decrc st p2 in
+                    add_fresh_val_as_result st 1 v
 
     (*| _ -> eval_err_loc "invalid selection object"*)
 
@@ -960,12 +1024,16 @@ and force_obj_to_array st env p loc =
             else
                 let idx = get_iterator_idx idx_it in
                 let p_idx = fresh_ptr_name () in
-                let st = st_add st p_idx @@ mk_vector idx in
+                let st = st_add st p_idx 1 @@ mk_vector idx in
+                let st = st_incrc st p in
                 (* FIXME pass location throught the error message.  *)
                 let st, p_el = eval_obj_sel st env p p_idx
                                @@ sprintf "force_obj_to_array (%s).[%s] failed"
                                   (value_to_str @@ st_lookup st p) (val_lst_to_str idx) in
-                _force st (lexi_next idx_it lb ub) lb ub p ((st_lookup st p_el) :: res)
+                let v_el = st_lookup st p_el in
+                (* FIXME This works only when v_el are not functions!  *)
+                let st = st_decrc st p_el in
+                _force st (lexi_next idx_it lb ub) lb ub p (v_el :: res)
         in
 
         let idx_it = if value_num_vec_lt lb shp_vec then (Nxt (lb)) else Done in
@@ -973,7 +1041,7 @@ and force_obj_to_array st env p loc =
         st_update st p (VArray (shp_vec, List.rev @@ res))
 
 
-and force_imap_to_array st p =
+(*and force_imap_to_array st p =
     let v = st_lookup st p in
     assert (value_is_imap v);
     let p_out, p_inner, parts, env = value_imap_to_tuple v in
@@ -1208,4 +1276,4 @@ and force_filter_last_part st env p =
     let st = st_update st p @@ VFilter (pfunc, pobj,
                                         List.append l ((lim_ord, res, n) :: (List.tl r))) in
     (st, p)
-
+*)

@@ -154,4 +154,62 @@ let rec cmp_ast_noloc e1 e2 =
 
     | _ -> false
 
+(* Returns a list containing all the free variables of the
+ * expression `e`.  All means that it includes duplicates.
+ *)
+let rec _free_vars e vars =
+    match e with
+    | {expr_kind = EFalse }
+    | {expr_kind = ETrue }
+    | {expr_kind = ENum _ } ->
+            vars
+    | {expr_kind = EVar x } ->
+            x :: vars
+
+    | {expr_kind = EArray lst } ->
+            List.fold_left (fun vars e ->
+                            _free_vars e vars)
+                           vars
+                           lst
+
+    | {expr_kind = EBinOp (_, e1, e2) }
+    | {expr_kind = EApply (e1, e2) }
+    | {expr_kind = ESel (e1, e2) }
+    | {expr_kind = EFilter (e1, e2) } ->
+            let vars = _free_vars e1 vars in
+            let vars = _free_vars e2 vars in
+            vars
+
+    | {expr_kind = EUnary (_, e1) } ->
+            _free_vars e1 vars
+
+    | {expr_kind = ELambda (x, e) } ->
+            vars @ List.filter (fun y -> x <> y) @@ _free_vars e []
+
+    | {expr_kind = ECond (e1, e2, e3) }
+    | {expr_kind = EReduce (e1, e2, e3) } ->
+             let vars = _free_vars e1 vars in
+             let vars = _free_vars e2 vars in
+             let vars = _free_vars e3 vars in
+             vars
+
+    | {expr_kind = ELetRec (x, e1, e2)} ->
+            let vars = _free_vars e1 vars in
+            let vars = _free_vars e2 vars in
+            List.filter (fun y -> x <> y) vars
+
+    | {expr_kind = EImap (e1, e2, gelst)} ->
+            let vars = _free_vars e1 vars in
+            let vars = _free_vars e2 vars in
+            let vlst = List.map (fun ge ->
+                                 let (e1, x, e2), body = ge in
+                                 let vs1' = _free_vars e1 [] in
+                                 let vs2' = _free_vars e2 [] in
+                                 let vs3' = List.filter (fun y -> y <> x) @@ _free_vars body [] in
+                                 List.append vs1' @@ List.append vs2' vs3')
+                                gelst in
+
+            List.append vars @@ List.flatten vlst
+
+let free_vars_lst e = _free_vars e []
 

@@ -20,68 +20,14 @@ open Ast
 module StringSet = Set.Make (String)
 module StringMap = Map.Make (String)
 
-let rec free_vars vars e =
-    match e with
-    | {expr_kind = EFalse }
-    | {expr_kind = ETrue }
-    | {expr_kind = ENum _ } ->
-            StringSet.empty
-    | {expr_kind = EVar x } ->
-            if StringSet.mem x vars then
-                StringSet.empty
-            else
-                StringSet.add x StringSet.empty
 
-    | {expr_kind = EArray lst } ->
-            let vslst = List.map (fun e -> free_vars vars e) lst in
-            List.fold_left (fun vars vs ->
-                            StringSet.union vars vs)
-                           StringSet.empty
-                           vslst
-
-    | {expr_kind = EBinOp (_, e1, e2) }
-    | {expr_kind = EApply (e1, e2) }
-    | {expr_kind = ESel (e1, e2) }
-    | {expr_kind = EFilter (e1, e2) } ->
-            let vs1 = free_vars vars e1 in
-            let vs2 = free_vars vars e2 in
-            StringSet.union vs1 vs2
-
-    | {expr_kind = EUnary (_, e1) } ->
-            free_vars vars e1
-
-    | {expr_kind = ELambda (x, e) } ->
-            free_vars (StringSet.add x vars) e
-
-    | {expr_kind = ECond (e1, e2, e3) }
-    | {expr_kind = EReduce (e1, e2, e3) } ->
-            let vs1 = free_vars vars e1 in
-            let vs2 = free_vars vars e2 in
-            let vs3 = free_vars vars e3 in
-            StringSet.union (StringSet.union vs1 vs2) vs3
-
-    | {expr_kind = ELetRec (x, e1, e2)} ->
-            let vs1 = free_vars (StringSet.add x vars) e1 in
-            let vs2 = free_vars (StringSet.add x vars) e2 in
-            StringSet.union vs1 vs2
-
-    | {expr_kind = EImap (e1, e2, gelst)} ->
-            let vs1 = free_vars vars e1 in
-            let vs2 = free_vars vars e2 in
-            let vlst = List.map (fun ge ->
-                                 let (e1, x, e2), body = ge in
-                                 let vs1' = free_vars vars e1 in
-                                 let vs2' = free_vars vars e2 in
-                                 let vs3' = free_vars (StringSet.add x vars) body in
-                                 StringSet.union (StringSet.union vs1' vs2') vs3')
-                                gelst in
-            let vs3 = List.fold_left StringSet.union StringSet.empty vlst in
-            StringSet.union (StringSet.union vs1 vs2) vs3
+let free_vars e =
+  List.fold_left (fun s v -> StringSet.add v s) StringSet.empty @@ Ast.free_vars_lst e
 
 let print_free_vars e =
     Printf.printf "Free vars of expr %s\n" (Print.expr_to_str e);
     StringSet.iter (fun x -> Printf.printf "%s, " x)
-                   (free_vars StringSet.empty e);
+                   (free_vars e);
     Printf.printf "\n"
 
 
@@ -96,15 +42,15 @@ let rec lst_print l =
     | x :: xs -> Printf.sprintf "%s %s" x (lst_print xs)
 
 let print_mapping m =
-    (*let xprint var varlist_expr =
+    let xprint var varlist_expr =
         let varlist, expr = varlist_expr in
         Printf.printf "%s: Λ%s.%s\n" var (lst_print varlist) (Print.expr_to_str expr)
-    in*)
-    let xprint1 var varlist_expr =
+    in
+    (*let xprint1 var varlist_expr =
         let varlist, expr = varlist_expr in
         Printf.printf "%s: %s\n" var @@ Print.expr_to_str (wrap_lambda varlist expr)
-    in
-    StringMap.iter xprint1 m
+    in*)
+    StringMap.iter xprint m
 
 
 
@@ -119,7 +65,7 @@ let fresh_var () =
 let rec lift m e =
     match e with
     | {expr_kind = ELambda (x1, e1) } ->
-            let fv = free_vars StringSet.empty e in
+            let fv = free_vars e in
             if StringSet.cardinal fv = 0 then
                 let m, e1' = lift m e1 in
                 Printf.printf "=1= lifting body %s into %s\n" (Print.expr_to_str e1) (Print.expr_to_str e1');
@@ -215,6 +161,13 @@ let lift_lambdas e =
     let st = StringMap.fold (fun var varlist_expr st ->
                              let varlist, expr = varlist_expr in
                              Storage.st_add st ("__p" ^ var)
+                                            (* FIXME it is not clear what shall we do with RC here
+                                             *       we can use more sophisticated type than int
+                                             *       to indicate that this is an infinite rc.
+                                             *       Putting `1` for now, even though this is not
+                                             *       correct.
+                                             *)
+                                            1
                                             (* Include `env` in all the function closures
                                              * so that they have access to all the global
                                              * functions.
