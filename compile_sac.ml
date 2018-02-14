@@ -351,9 +351,19 @@ let rec compile_stmts stmts e =
             let wl = SacWith (wl_parts, wl_kind) in
             (stmts @ [SacAssign (res_var, wl)], res_var)
 
-    (* TODO filter are still missing.  *)
+    | { expr_kind = EFilter (e_fun, e_arg) } ->
+            let stmts, fname = compile_stmts stmts e_fun in
+            let stmts, arg   = compile_stmts stmts e_arg in
 
-    | _ -> failwith "bad statement"
+            (* get the shape of the argument *)
+            let shape_var = fresh_var_name () in
+            let shape_funcall = SacFuncall ("_shape_A_", [SacVar arg]) in
+            let stmts = stmts @ [SacAssign (shape_var, shape_funcall)] in
+
+            (* construct the call to a macro. *)
+            let filter_call = SacFuncall ("FILTER", [SacVar fname; SacVar arg; SacVar shape_var]) in
+            let res_var = fresh_var_name () in
+            (stmts @ [SacAssign (res_var, filter_call)], res_var)
 
 let compile_main (e: Ast.expr) =
     let stmts, var = compile_stmts [] e in
@@ -404,9 +414,18 @@ let sac_funs =
 ^ "      ([0] <= iv < [l1]):     _sel_VxA_ (iv, x);\n"
 ^ "      ([l1] <= iv < [_add_SxS_ (l1, l2)]): _sel_VxA_ ([_sub_SxS_ (_sel_VxA_ ([0], iv), l1)], y);\n"
 ^ "  }: genarray ([_add_SxS_ (l1, l2)], 0);\n"
-^ "}\n\n\n"
-
-
+^ "}\n"
+^ "\n"
+^ "\n"
+^ "#define FILTER(__f, __arg, __sh_arg)                \\\n"
+^ "    with {                                          \\\n"
+^ "        (zero_vec (__sh_arg) <= __iv < __sh_arg) {  \\\n"
+^ "           __el = _sel_VxA_ (__iv, __arg);          \\\n"
+^ "        }: (__f (__el) ? [__el] : []);              \\\n"
+^ "    }: fold (vec_concat, [])\n"
+^ "\n"
+^ "\n"
+^ "\n"
 
 
 let compile e m =
