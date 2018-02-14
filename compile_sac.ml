@@ -41,13 +41,14 @@ and sac_expr =
     | SacVar of string
     (*| SacBinop of sac_binop * sac_expr * sac_expr *)
     | SacFuncall of string * (sac_expr list)
-    (* XXX only genarray withloops for now *)
     | SacWith of (sac_generator * sac_stmt list * sac_expr) list * sac_genarray
 
 and sac_generator = sac_expr * string * sac_expr
 
 (* Default element, size *)
-and sac_genarray = sac_expr * sac_expr
+and sac_genarray =
+    | SacGenarray of sac_expr * sac_expr
+    | SacFold of sac_expr * sac_expr
 
 
 (*and sac_binop =
@@ -102,10 +103,16 @@ let rec print_sac_expr oc level e =
             fprintf oc "with {\n";
             List.fold_left (fun () part -> print_wl_part oc (level+1) part) () partlst;
             prind oc level; fprintf oc "}: ";
-            let shp, def = with_expr in
-            fprintf oc "genarray ("; print_sac_expr oc level shp;
-            fprintf oc ", "; print_sac_expr oc level def;
-            fprintf oc ")"
+            match with_expr with
+            | SacGenarray (shp, def) ->
+                    fprintf oc "genarray ("; print_sac_expr oc level shp;
+                    fprintf oc ", "; print_sac_expr oc level def;
+                    fprintf oc ")"
+            | SacFold (func, neut) ->
+                    fprintf oc "fold ("; print_sac_expr oc level func;
+                    fprintf oc ", "; print_sac_expr oc level neut;
+                    fprintf oc ")"
+
 
 and print_wl_part oc level part =
     let gen, stmts, expr = part in
@@ -314,11 +321,37 @@ let rec compile_stmts stmts e =
                            var_gen_expr_lst in
 
             let res_var = fresh_var_name () in
-            let wl_kind = (SacVar shp_var, SacNum 0) in
+            let wl_kind = SacGenarray (SacVar shp_var, SacNum 0) in
             let wl = SacWith (wl_parts, wl_kind) in
             (stmts @ [SacAssign (res_var, wl)], res_var)
 
-    (* TODO reduce and filter are still missing.  *)
+    | { expr_kind = EReduce (e_fun, e_neut, e_arg) } ->
+            let stmts, fname = compile_stmts stmts e_fun in
+            let stmts, neut  = compile_stmts stmts e_neut in
+            let stmts, arg   = compile_stmts stmts e_arg in
+
+            (* get the shape of the argument *)
+            let shape_var = fresh_var_name () in
+            let shape_funcall = SacFuncall ("_shape_A_", [SacVar arg]) in
+            let stmts = stmts @ [SacAssign (shape_var, shape_funcall)] in
+
+            (* get the zero element of the argument *)
+            let zero_var = fresh_var_name () in
+            let zero_funcall = SacFuncall ("zero_vec", [SacVar shape_var]) in
+            let stmts = stmts @ [SacAssign (zero_var, zero_funcall)] in
+
+            (* build a with-loop with reduce expression *)
+            let res_var = fresh_var_name () in
+            let wl_kind = SacFold (SacVar fname, SacVar neut) in
+            let iv = fresh_var_name () in
+            let sel_var = fresh_var_name () in
+            let wl_parts = [((SacVar zero_var, iv, SacVar shape_var),
+                             [SacAssign (sel_var, SacFuncall ("_sel_VxA_", [SacVar iv; SacVar arg]))],
+                             SacVar sel_var)] in
+            let wl = SacWith (wl_parts, wl_kind) in
+            (stmts @ [SacAssign (res_var, wl)], res_var)
+
+    (* TODO filter are still missing.  *)
 
     | _ -> failwith "bad statement"
 
@@ -355,6 +388,13 @@ let sac_funs =
 ^ "\n"
 ^ "\n"
 ^ "int[.]\n"
+^ "zero_vec (int[.] x)\n"
+^ "{\n"
+^ "   return with {}: genarray (_shape_A_ (x), 0);\n"
+^ "}\n"
+^ "\n"
+^ "\n"
+^ "int[.]\n"
 ^ "vec_concat (int[.] x, int[.] y)\n"
 ^ "{\n"
 ^ "  l1 = _sel_VxA_ ([0], _shape_A_ (x));\n"
@@ -365,6 +405,7 @@ let sac_funs =
 ^ "      ([l1] <= iv < [_add_SxS_ (l1, l2)]): _sel_VxA_ ([_sub_SxS_ (_sel_VxA_ ([0], iv), l1)], y);\n"
 ^ "  }: genarray ([_add_SxS_ (l1, l2)], 0);\n"
 ^ "}\n\n\n"
+
 
 
 
