@@ -4,7 +4,7 @@ passed=0
 failed=0
 
 for example in examples/*.heh; do
-    if (./main.native "$example" 2>&1 | grep -q "Fatal error"); then
+    if (./main.native -lift-lambdas "$example" 2>&1 | grep -q "Fatal error"); then
         failed=$(expr $failed + 1)
         echo "[FAIL] $example"
     else
