@@ -41,12 +41,12 @@ and sac_expr =
     | SacVar of string
     (*| SacBinop of sac_binop * sac_expr * sac_expr *)
     | SacFuncall of string * (sac_expr list)
-    | SacWith of (sac_generator * sac_stmt list * sac_expr) list * sac_genarray
+    | SacWith of (sac_generator * sac_stmt list * sac_expr) list * sac_wlop
 
 and sac_generator = sac_expr * string * sac_expr
 
 (* Default element, size *)
-and sac_genarray =
+and sac_wlop =
     | SacGenarray of sac_expr * sac_expr
     | SacFold of sac_expr * sac_expr
 
