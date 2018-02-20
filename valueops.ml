@@ -181,11 +181,13 @@ let value_closure_to_triple v =
             value_err @@ sprintf "expected closure with abstraction, but got `%s' instead"
                                  @@ value_to_str v
 
+let shape_vec_is_finite sv =
+    List.for_all (fun x -> (value_num_compare x (VNum omega)) = -1) sv
+
 let value_imap_is_finite st v =
     match v with
     | VImap (p1, p2, _, _) ->
             let _, outer_shape_vec = value_array_to_pair @@ Storage.st_lookup st p1 in
             let _, inner_shape_vec = value_array_to_pair @@ Storage.st_lookup st p2 in
-            List.for_all (fun x -> (value_num_compare x (VNum omega)) = -1)
-                         (List.append outer_shape_vec inner_shape_vec)
+            shape_vec_is_finite @@ outer_shape_vec @ inner_shape_vec
     | _ -> value_err "value_imap_is_finite"

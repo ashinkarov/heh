@@ -84,6 +84,15 @@ let main () =
                   end)
         usage;
 
+    (* If we force letrec imaps, per defult we turn
+     * finite_imap_strict on and alter it in case we find
+     * `letrec x = IMAP` where IMAP is `imap _ _ _` and
+     * x \in FV(IMAP).
+     *)
+    if !force_letrec_imap then
+        finite_imap_strict_on := true
+    ;
+
     (* If no input files are passed as arguments, assume that
      * we are reading from stdin.
      *)

@@ -91,6 +91,12 @@ let expr_is_lambda e =
     | { expr_kind = ELambda (_, _) } -> true
     | _ -> false
 
+let expr_is_imap e =
+    match e with
+    | { expr_kind = EImap (_, _, _) } -> true
+    | _ -> false
+
+
 let expr_get_var_name e =
     match e with
     | { expr_kind = EVar (x) } -> Some (x)

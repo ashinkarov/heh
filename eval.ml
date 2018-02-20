@@ -655,19 +655,24 @@ and eval st env e =
 
     | { expr_kind = ELetRec (var, e1, e2) } ->
             let pname = fresh_ptr_name () in
-            let (st, p1) = eval st (env_add env var pname) e1 in
-            let st = update_letrec_ptr st pname p1 in
-            (* Force imap in case force_lterec_imap is true,
-             * `p1` is an imap closure of a finite size.  *)
-            let st = let v = st_lookup st p1 in
-                     if  value_is_imap v
-                         && !force_letrec_imap
-                         && value_imap_is_finite st v then
-                         force_imap_to_array st p1
-                     else
-                         st
-            in
-            eval st (env_add env var p1) e2
+            if expr_is_imap e1 
+               && !force_letrec_imap
+               && Lifting.StringSet.mem var 
+                  @@ Lifting.free_vars  Lifting.StringSet.empty e1 then
+            begin
+                let old_finite_imap_strict = !Globals.finite_imap_strict_on in
+                Globals.finite_imap_strict_on := false;
+                let st, p1 = eval st (env_add env var pname) e1 in
+                Globals.finite_imap_strict_on := old_finite_imap_strict;
+                let st = update_letrec_ptr st pname p1 in
+                let st = force_imap_to_array st p1 in
+                eval st (env_add env var p1) e2
+            end
+            else
+                let st, p1 = eval st (env_add env var pname) e1 in
+                let st = update_letrec_ptr st pname p1 in
+                eval st (env_add env var p1) e2
+
 
     | { expr_kind = EImap (e1, e2, ge_lst) } ->
             let st, p1 = eval st env e1 in
@@ -725,21 +730,13 @@ and eval st env e =
                 sprintf "expected array as inner shape got `%s'"
                         @@ value_to_str v2;
             let shp_in_vec, data_in_vec = value_array_to_pair @@ st_lookup st p2 in
-            if  !finite_imap_strict_on
-                && List.for_all (fun x -> (value_num_compare x (VNum omega)) = -1)
-                                  (List.append data_out_vec data_in_vec) then
+            if !finite_imap_strict_on
+               && shape_vec_is_finite (data_out_vec @ data_in_vec) then
                 (* NOTE If imap is recursive, we won't be able to evaluate it strictly,
                         as we have to finish evaluation of the enclosing letrec
                         firs, otherwise we won't have a binding to the recursive
                         pointer in the environment.  *)
-                try
-                    eval_strict_imap st env p1 p2 vg_expr_lst
-                with
-                    StorageFailure s ->
-                        printf "recovering from strict imap evaluation of `%s'\n"
-                               (Print.expr_to_str e);
-                        add_fresh_val_as_result st @@ mk_imap_value p1 p2 vg_expr_lst env
-
+                eval_strict_imap st env p1 p2 vg_expr_lst
             else
                 add_fresh_val_as_result st @@ mk_imap_value p1 p2 vg_expr_lst env
 
