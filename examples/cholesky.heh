@@ -1,0 +1,60 @@
+;;;
+; We demonstrate that our language can support recursive array
+; specifications under semantics defined in the IFL paper.
+; That is, all the finite imaps are forced, unless we evaluate
+; the following expression: `letrec x = IMAP`, where IMAP is
+; an imap expression with a free variable x.  In this case
+; we create an imap closure, and force all its elements.
+
+;;; Helper Functions
+;
+; Sums up all elements in the vector
+letrec sum = 
+    \v.reduce (\x.\y.x+y) 0 v 
+in
+
+; Straight-forward function to compute integer square root.
+; For more efficient algotithms see:
+; http://www.nuprl.org/MathLibrary/integer_sqrt/
+letrec sqrt = 
+    \x.if x = 0 then 
+           0 
+       else
+           letrec r2 = sqrt (x - 1) in
+           letrec r3 = r2 + 1 in
+           if x < r3*r3 then 
+               r2 
+           else 
+               r3
+in
+
+; Cholesky decomposition, that we transliterate from:
+; https://en.wikipedia.org/wiki/Cholesky_decomposition?#The_Cholesky%E2%80%93Banachiewicz_and_Cholesky%E2%80%93Crout_algorithms
+letrec cholesky = 
+    \a.letrec l = 
+       imap |a| {_(iv): letrec i = iv.[0] in 
+                        letrec j = iv.[1] in
+                        letrec take_j = imap [j] {_(jv): l.[i, jv.[0]] * l.[j, jv.[0]] in
+                        letrec s = sum take_j in
+                        
+                        if i = j then
+                            sqrt (a.[i,i] - s)
+                        else if i > j then
+                            (a.[i,j] - s) / l.[j,j]
+                        else
+                            0
+       in l
+in
+
+; We construct the input to cholesky decomposition so that during
+; its evaluation, negative numbers never appear (as Heh supports only nats),
+; and all the sqrt arguments are perfect squares (otherwise the errors will
+; accumulate, as sqrt is an integer square root).
+letrec a =
+    [          ;      [
+      [4, 4 ], ;   =>   [2, 0],
+      [6, 18]  ;        [3, 3]
+    ]          ;      ]
+in
+
+cholesky a
