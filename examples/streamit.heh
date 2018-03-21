@@ -1,0 +1,40 @@
+; Generic extensions of scalar plus and minus that are
+; applicable to arrays of any dimensionality (including
+; scalars or empty arrays).
+letrec plus  = \x.\y.imap |x| {_(iv): x.iv + y.iv in
+letrec minus = \x.\y.imap |x| {_(iv): x.iv - y.iv in
+
+; Dot product of `a` and `b`.
+letrec dotp = \a.\b.
+    reduce plus 0 (imap |a| {_(iv): a.iv * b.iv) in
+
+; For a given vector `a`, select a subvector of length
+; `len`, starting from the `idx` position.
+letrec takeat = \idx.\len.\a.
+    imap [len] {_(iv): a.(plus idx iv) in
+
+; Definition of a generic filter primitive, assuming that
+; input and output rates are fixed to 1 element.  That is
+; at every step, a filter consumes one element and produces
+; one element.
+letrec si_filter = \work.\peek.\input.
+    letrec sh = minus |input| [peek] in
+    imap sh {_(iv): work (takeat iv peek input) in
+
+; Work function in the terminology of StreamIt.
+; Given an array of weights and a buffer, compute their
+; dot product.
+letrec fir_work = \weights.\buffer.
+    dotp buffer weights in
+
+; Specialise generic filter with the previously defined `work`
+; function.  This is how we could implement FIRFilter from the
+; StreamIt paper.  Note here that `fir_work` is partially applied.
+letrec fir = \input.\weights.
+    letrec n = |weights|.[0] in
+    si_filter (fir_work weights) n input
+
+in
+    letrec inp = [1,2,3,4,5,6,7,8,9,10] in
+    letrec weights = [1,2,3] in
+    fir inp weights

@@ -1,0 +1,36 @@
+; Generic extensions of scalar plus and minus that are
+; applicable to arrays of any dimensionality (including
+; scalars or empty arrays).
+letrec plus  = \x.\y.imap |x| {_(iv): x.iv + y.iv in
+letrec minus = \x.\y.imap |x| {_(iv): x.iv - y.iv in
+
+; Dot product of `a` and `b`.
+letrec dotp = \a.\b.
+    reduce plus 0 (imap |a| {_(iv): a.iv * b.iv) in
+
+; For a given vector `a`, select a subvector of length
+; `len`, starting from the `idx` position.
+letrec takeat = \idx.\len.\a.
+    imap [len] {_(iv): a.(plus idx iv) in
+
+; Direct implementation of the FIRfilter from the
+; StreamIt paper.
+letrec fir = \input.\weights.
+    letrec n = |weights|.[0] in
+    letrec l = |input|.[0] in
+    imap [l - n]
+         {_(iv): dotp (takeat iv n input) weights in
+
+; This is the above specification, where all the helper
+; functions are inlined, and we are left with a single
+; imap expression.  This is reasonbaly accurate transliteration
+; of the intermediate state of the SaC code after optimisations.
+letrec fir_inlined = \input.\weights.
+    letrec n = |weights|.[0] in
+    letrec l = |input|.[0] in
+    imap [l - n] {_(iv):
+                  reduce plus 0 (imap [n] {_(jv): input.(plus iv jv) * weights.jv)
+in
+    letrec inp = [1,2,3,4,5,6,7,8,9,10] in
+    letrec weights = [1,2,3] in
+    fir_inlined inp weights
