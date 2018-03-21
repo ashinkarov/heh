@@ -18,7 +18,7 @@ letrec takeat = \idx.\len.\a.
 letrec fir = \input.\weights.
     letrec n = |weights|.[0] in
     letrec l = |input|.[0] in
-    imap [l - n]
+    imap [l - n + 1]
          {_(iv): dotp (takeat iv n input) weights in
 
 ; This is the above specification, where all the helper
@@ -28,9 +28,9 @@ letrec fir = \input.\weights.
 letrec fir_inlined = \input.\weights.
     letrec n = |weights|.[0] in
     letrec l = |input|.[0] in
-    imap [l - n] {_(iv):
-                  reduce plus 0 (imap [n] {_(jv): input.(plus iv jv) * weights.jv)
+    imap [l - n + 1] {_(iv):
+                      reduce plus 0 (imap [n] {_(jv): input.(plus iv jv) * weights.jv)
 in
     letrec inp = [1,2,3,4,5,6,7,8,9,10] in
     letrec weights = [1,2,3] in
-    fir_inlined inp weights
+    fir inp weights

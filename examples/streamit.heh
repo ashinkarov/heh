@@ -18,7 +18,7 @@ letrec takeat = \idx.\len.\a.
 ; at every step, a filter consumes one element and produces
 ; one element.
 letrec si_filter = \work.\peek.\input.
-    letrec sh = minus |input| [peek] in
+    letrec sh = [|input|.[0] - peek + 1] in
     imap sh {_(iv): work (takeat iv peek input) in
 
 ; Work function in the terminology of StreamIt.
