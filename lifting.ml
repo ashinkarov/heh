@@ -311,6 +311,7 @@ let rec propagate () e =
             Traversal.topdown propagate () e
 
 
+
 let print_expr_lst lst =
     Printf.printf "--- lst: %s\n\n" @@ Print.expr_to_str @@ mk_earray lst
 
@@ -338,6 +339,25 @@ let expr_is_global_fun m e =
     | Some (x) ->
         if StringMap.mem x m then Some (x) else None
     | None -> None
+
+
+let rec propagate_glob m e =
+    match e with
+    | {expr_kind = ELetRec (x1, e1, e2) } ->
+            let subst_map = StringMap.add x1 e1 StringMap.empty in
+            if None = expr_is_global_fun m e1
+               && subst_is_sane subst_map e2 then 
+                let _, e2 = subst subst_map e2 in
+                let m, e2 = propagate_glob m e2 in
+                (m, e2)
+            else
+                let m, e1' = propagate_glob m e1 in
+                let m, e2' = propagate_glob m e2 in
+                (m, mk_eletrec x1 e1' e2')
+    | _ ->
+            Traversal.topdown propagate_glob m e
+
+
 
 (*
  * XXX Here we assume that global functions are not shaddowed by
@@ -776,7 +796,8 @@ let rec flatten_hof m pats e =
 
     let _, e1 = propagate () e1 in
 
-    let m = uneta_globalfuns m e in
+    let m = uneta_globalfuns m e1 in
+    let _, e1 = propagate () e1 in
 
     (* Fixpoint over goal expression and global functions.  *)
     if Ast.cmp_ast_noloc e e1
@@ -786,6 +807,57 @@ let rec flatten_hof m pats e =
         flatten_hof m pats e1
 
 
+(* inline applications when all the parameters are given.  *)
+let rec inline_full_apps m e =
+    let rec upd_args mpats l =
+        match l with
+        | h :: t ->
+                let (mpats, h) = inline_full_apps mpats h in
+                let mpats, t = upd_args mpats t in
+                (mpats, h :: t)
+        | [] -> (mpats, [])
+    in
+    match e with
+    | { expr_kind = EApply (e1, e2) } ->
+            let applst = flatten_apply e1 @ [e2] in
+            let m, applst = upd_args m applst in
+            let g = List.hd applst in
+            let e = match expr_is_global_fun m g with
+             | Some (fname) ->
+                 let fparams, fbody = StringMap.find fname m in
+                 if (* Non-recursive function.  *)
+                    (* Number of arguments matches the number of parameters.  *)
+                    List.length fparams = List.length applst - 1 then
+                        List.fold_left2
+                            (fun e arg exp ->
+                                let v = fresh_var () in
+                                let ve = mk_evar v in
+                                let _, e' = subst (StringMap.add arg ve StringMap.empty) e in
+                                mk_eletrec v exp e')
+                            fbody
+                            fparams
+                            (List.tl applst)
+                 else
+                    e
+             | _ -> e in
+            (m, e)
+
+    | _ ->  Traversal.topdown inline_full_apps m e
+
+let rec inline_globalfuns m =
+    let vars = StringMap.fold (fun var _ l -> var :: l) m [] in
+    let m1 = List.fold_left (fun m var ->
+                    let varlst, expr = StringMap.find var m in
+                    let m, expr = inline_full_apps m expr in
+                    (* let m, expr = propagate_glob m expr in *)
+                    let m = StringMap.remove var m in
+                    StringMap.add var (varlst, expr) m) m vars in
+    if func_mappings_equal m m1 then
+        m1
+    else
+        inline_globalfuns m1
+
+
 
 let lift_lambdas e =
     let (m, _), e = lift (StringMap.empty, []) e in
@@ -793,8 +865,10 @@ let lift_lambdas e =
     Printf.printf "--- lifting lambdas into global functions and updating the expression\n";
     let m,  e = flatten_hof m [] e in
     Printf.printf "--- done flattening\n";
-    print_mapping m;
+    (*print_mapping m;*)
 
+    let m = inline_globalfuns m in
+    print_mapping m;
     (*
      * Create an environment for all the functions, using the naming
      * scheme for the pointers __p + <fun-name>.
