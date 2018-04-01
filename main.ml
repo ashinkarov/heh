@@ -48,6 +48,11 @@ let arglist = [
     ("-compile-sac",
         Arg.Set_string (sac_out_file),
         "<fname> : generate sac code and save it to <fname>");
+
+    ("-compile-py",
+        Arg.Set_string (py_out_file),
+        "<fname> : generate python (numpy) code and save it to <fname>");
+
   ]
 
 
@@ -57,6 +62,15 @@ let compile_sac e =
         Compile_sac.compile e m
     with 
         | _ -> Printf.printf "error: sac backend is a wee bit shite, sorre, pal :(\n"
+
+
+let compile_py e =
+    let m, st, env, e = Lifting.lift_lambdas e in
+    try 
+        Compile_py.compile e m
+    with 
+        | _ -> Printf.printf "error: python backend is a wee bit shite, sorre, pal :(\n"
+
 
 let eval_prog e =
     let st, env, e =
@@ -98,6 +112,8 @@ let main () =
     let _, e = Traverse.app_to_hof () e in
     if !sac_out_file <> "" then
         compile_sac e
+    else if !py_out_file <> "" then
+        compile_py e
     else begin
         eval_prog e
     end
