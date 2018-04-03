@@ -48,6 +48,9 @@ let fname_set = ref false
 (* The file where to write generated sac code.  *)
 let sac_out_file = ref ""
 
+(* The file where to write generated c code.  *)
+let c_out_file = ref ""
+
 (* Helper string that will be printed at the begining of the help message
    triggered by --help flag.  *)
 let usage = "usage: "
