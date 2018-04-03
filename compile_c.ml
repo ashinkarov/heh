@@ -150,11 +150,12 @@ let print_c_fun oc f =
 
 
 let print_c_prog oc p =
-    List.map (fun f -> if f.name <> "main" then
-                       begin
-                           print_c_fun_header oc f;
-                           fprintf oc ";\n"
-                       end) p;
+    List.fold_left (fun () f -> 
+                    if f.name <> "main" then
+                    begin
+                        print_c_fun_header oc f;
+                        fprintf oc ";\n"
+                    end) () p;
     List.fold_left (fun () f -> print_c_fun oc f; fprintf oc "\n\n") () p
 
 
