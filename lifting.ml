@@ -825,9 +825,11 @@ let rec inline_full_apps m e =
             let e = match expr_is_global_fun m g with
              | Some (fname) ->
                  let fparams, fbody = StringMap.find fname m in
+                 let (_, s), _ = reachable_funs (m, StringSet.empty) fbody in
                  if (* Non-recursive function.  *)
+                    not @@ StringSet.mem fname s
                     (* Number of arguments matches the number of parameters.  *)
-                    List.length fparams = List.length applst - 1 then
+                    && List.length fparams = List.length applst - 1 then
                         List.fold_left2
                             (fun e arg exp ->
                                 let v = fresh_var () in
