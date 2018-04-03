@@ -48,15 +48,26 @@ let arglist = [
     ("-compile-sac",
         Arg.Set_string (sac_out_file),
         "<fname> : generate sac code and save it to <fname>");
+
+    ("-compile-julia",
+        Arg.Set_string (julia_out_file),
+        "<fname> : generate julia code and save it to <fname>");
   ]
 
 
 let compile_sac e =
     let m, st, env, e = Lifting.lift_lambdas e in
-    try 
+    try
         Compile_sac.compile e m
-    with 
+    with
         | _ -> Printf.printf "error: sac backend is a wee bit shite, sorre, pal :(\n"
+
+let compile_julia e =
+    let m, st, env, e = Lifting.lift_lambdas e in
+    try
+        Compile_julia.compile e m
+    with
+        | _ -> Printf.printf "error: unfortunately the julia backend isn't quite ready yet.\n"
 
 let eval_prog e =
     let st, env, e =
@@ -90,7 +101,7 @@ let main () =
     let file = if !fname_set
                then open_in !fname
                else (fname := "<stdin>"; fname_set := true; stdin) in
-    
+
     let open Lexing in
     let lexbuf = from_channel file in
     lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = !fname };
@@ -98,6 +109,8 @@ let main () =
     let _, e = Traverse.app_to_hof () e in
     if !sac_out_file <> "" then
         compile_sac e
+    else if !julia_out_file <> "" then
+        compile_julia e
     else begin
         eval_prog e
     end
