@@ -155,7 +155,7 @@ and print_jl_params oc params =
 and print_jl_fun oc level f =
     if f.comment <> "" then
         prind oc level;
-        fprintf oc "# %s\n" f.comment;
+        fprintf oc "\n# %s\n" f.comment;
 
     prind oc level;
     fprintf oc "function %s" f.name;
@@ -212,7 +212,7 @@ let rec compile_stmts stmts e =
                 match op with
                 | OpPlus  -> "+"
                 | OpMinus -> "-"
-                | OpDiv   -> "//"
+                | OpDiv   -> "/"
                 | OpMod   -> "%"
                 | OpMult  -> "*"
                 | OpLt    -> "<"
@@ -323,13 +323,13 @@ let rec compile_stmts stmts e =
             let fstmts = List.map
                            (fun var_gen_expr ->
                             let var_lb, x, var_ub, e = var_gen_expr in
-                            let stmts, res_var = compile_stmts [JlAssign (x, JlVar idx_var)] e in
+                            let stmts, res_var = compile_stmts [JlAssign (x, JlVar idx_var)] e ~inimap:true in
                             let fcall = JlFuncall ("heh_inrange", [JlVar idx_var; JlVar var_lb; JlVar var_ub]) in
                             JlCond1 (fcall, stmts @ [JlReturn (JlVar res_var)]))
                            var_gen_expr_lst in
 
             let fun_name = fresh_var_name () in
-            let fstmts = fstmts @ [JlReturn (JlNum 1)] in
+            let fstmts = fstmts @ [JlReturn (JlNum 0)] in
             let stmts = stmts @ [JlFundef (mk_jl_function fun_name [idx_var] fstmts)] in
 
             let res_var = fresh_var_name () in

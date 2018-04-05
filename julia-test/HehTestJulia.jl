@@ -33,8 +33,6 @@ function heh_create_array(args...)
         end
     end
 
-    @show res
-
     return res
 end
 
@@ -80,6 +78,5 @@ function heh_islim(a)
 end
 
 function heh_inrange(iv::Array, lb::Array, ub::Array)
-    @show iv lb ub
-    return all(lb .<= iv) && all(iv .<= ub)
+    return all(lb+1 .<= iv) && all(iv .< ub+1)
 end
