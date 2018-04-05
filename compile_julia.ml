@@ -329,7 +329,7 @@ let rec compile_stmts stmts e =
                            var_gen_expr_lst in
 
             let fun_name = fresh_var_name () in
-            let fstmts = fstmts @ [JlReturn (JlNum 0)] in
+            let fstmts = fstmts @ [JlReturn (JlNum 1)] in
             let stmts = stmts @ [JlFundef (mk_jl_function fun_name [idx_var] fstmts)] in
 
             let res_var = fresh_var_name () in
