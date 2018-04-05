@@ -155,7 +155,7 @@ and print_jl_params oc params =
 and print_jl_fun oc level f =
     if f.comment <> "" then
         prind oc level;
-        fprintf oc "\n# %s\n" f.comment;
+        fprintf oc "# %s\n" f.comment;
 
     prind oc level;
     fprintf oc "function %s" f.name;
@@ -323,7 +323,7 @@ let rec compile_stmts stmts e =
             let fstmts = List.map
                            (fun var_gen_expr ->
                             let var_lb, x, var_ub, e = var_gen_expr in
-                            let stmts, res_var = compile_stmts [JlAssign (x, JlVar idx_var)] e ~inimap:true in
+                            let stmts, res_var = compile_stmts [JlAssign (x, JlVar idx_var)] e in
                             let fcall = JlFuncall ("heh_inrange", [JlVar idx_var; JlVar var_lb; JlVar var_ub]) in
                             JlCond1 (fcall, stmts @ [JlReturn (JlVar res_var)]))
                            var_gen_expr_lst in
@@ -358,7 +358,88 @@ let compile_jl_function name varlst expr =
 
 (* we indent this by one level as this is part of the module *)
 let jl_funs =
-  "include(\"./HehTestJulia.jl\")\n"
+  "function heh_tup2arr(t::Tuple)\n"
+^ "    return [t...]\n"
+^ "end\n"
+^ "\n"
+^ "function heh_arr2tup(a::Array)\n"
+^ "    return (a...)\n"
+^ "end\n"
+^ "\n"
+^ "function heh_access_array(a::Array, t::Array)\n"
+^ "    return getindex(a, t+1...)\n"
+^ "end\n"
+^ "\n"
+^ "function heh_access_array(a::Int, t::Array)\n"
+^ "    if t[1] != 1\n"
+^ "        error(\"Trying to access integer at non-one index: \", t)\n"
+^ "    end\n"
+^ "    return a\n"
+^ "end\n"
+^ "\n"
+^ "function heh_create_array(args...)\n"
+^ "    ArraysOrInts = Union{Array, Int}\n"
+^ "\n"
+^ "    if length(args) == 0\n"
+^ "        res = Array{Int,1}[]\n"
+^ "    else\n"
+^ "        if isa(args[1], Number)\n"
+^ "            res = [args...]\n"
+^ "        elseif isa(args[1], Array)\n"
+^ "            tmp = [args...]\n"
+^ "            res = hcat(tmp...)'\n"
+^ "        else\n"
+^ "            throw(TypeError(:heh_create_array, \"Incorrect type given\", ArraysOrInts, args[1]))\n"
+^ "        end\n"
+^ "    end\n"
+^ "\n"
+^ "    return res\n"
+^ "end\n"
+^ "\n"
+^ "function heh_imap(s1::Array, s2::Array, f)\n"
+^ "    vals = similar(Array{Array}, heh_arr2tup(s1))\n"
+^ "    res = similar(Array{Int}, heh_arr2tup(s1))\n"
+^ "\n"
+^ "    # populate vals with all 'indices'\n"
+^ "    for idx in eachindex(vals)\n"
+^ "        vals[idx] = heh_tup2arr(ind2sub(vals, idx))-1\n"
+^ "    end\n"
+^ "    map!(f, res, vals)\n"
+^ "    return res\n"
+^ "end\n"
+^ "\n"
+^ "function heh_reduce(f, neut::Int, a::Array)\n"
+^ "    res = neut\n"
+^ "    for x in eachindex(a)\n"
+^ "        res = f(x, res)\n"
+^ "    end\n"
+^ "\n"
+^ "    return res\n"
+^ "end\n"
+^ "\n"
+^ "function heh_reduce(f, neut::Int, a::Int)\n"
+^ "    return f(a, neut)\n"
+^ "end\n"
+^ "\n"
+^ "function heh_filter(p, a::Array)\n"
+^ "    return filter(p, a)\n"
+^ "end\n"
+^ "\n"
+^ "function heh_shape(a::Array)\n"
+^ "    return heh_tup2arr(size(a))\n"
+^ "end\n"
+^ "\n"
+^ "function heh_shape(a::Int)\n"
+^ "    return [1]\n"
+^ "end\n"
+^ "\n"
+^ "function heh_islim(a)\n"
+^ "    return false\n"
+^ "end\n"
+^ "\n"
+^ "function heh_inrange(iv::Array, lb::Array, ub::Array)\n"
+^ "    return all(lb .<= iv) && all(iv .< ub)\n"
+^ "end\n"
 ^ "\n"
 
 let call_jl_main =
