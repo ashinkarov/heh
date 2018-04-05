@@ -84,17 +84,17 @@ let rec print_jl_expr oc level e =
             fprintf oc "%d" n
 
     | JlArray lst ->
-            fprintf oc "[";
-            print_sep_list oc (print_jl_expr oc level) lst ~sep:" ";
-            fprintf oc "]";
+            fprintf oc "heh_create_array(";
+            print_sep_list oc (print_jl_expr oc level) lst;
+            fprintf oc ")";
 
     | JlSel (a, idx) ->
             (* assume that shape is already an array *)
-            fprintf oc "getindex(";
+            fprintf oc "heh_access_array(";
             print_jl_expr oc level a;
             fprintf oc ", ";
             print_jl_expr oc level idx;
-            fprintf oc "+1)";
+            fprintf oc ")";
 
     | JlBinop (a, op, b) ->
             print_jl_expr oc level a;
@@ -166,7 +166,7 @@ and print_jl_fun oc level f =
     fprintf oc "end\n"
 
 let print_jl_prog oc p =
-    List.fold_left (fun () f -> print_jl_fun oc 1 f; fprintf oc "\n\n") () p
+    List.fold_left (fun () f -> print_jl_fun oc 0 f; fprintf oc "\n\n") () p
 
 
 let var_count = ref 0
@@ -329,7 +329,7 @@ let rec compile_stmts stmts e =
                            var_gen_expr_lst in
 
             let fun_name = fresh_var_name () in
-            let fstmts = fstmts @ [JlReturn JlNull] in
+            let fstmts = fstmts @ [JlReturn (JlNum 0)] in
             let stmts = stmts @ [JlFundef (mk_jl_function fun_name [idx_var] fstmts)] in
 
             let res_var = fresh_var_name () in
@@ -358,46 +358,11 @@ let compile_jl_function name varlst expr =
 
 (* we indent this by one level as this is part of the module *)
 let jl_funs =
-  "    function heh_imap(s1, s2, f)\n"
-^ "        res = Array{Int}(size(s1))\n"
-^ "\n"
-^ "        for idx in eachindex(res)\n"
-^ "           res[idx] = f(Array{Int}(idx))\n"
-^ "        end\n"
-^ "\n"
-^ "        return res\n"
-^ "    end\n"
-^ "\n"
-^ "    function heh_reduce(f, neut, a)\n"
-^ "        res = neut\n"
-^ "        for x in eachindex(a)\n"
-^ "            res = f(x, res)\n"
-^ "        end\n"
-^ "\n"
-^ "        return res\n"
-^ "    end\n"
-^ "\n"
-^ "    # Straight-forward implementation of filter.\n"
-^ "    # We can be smarter, like using the actual filter function!.\n"
-^ "    function heh_filter(p, a)\n"
-^ "        return [x for x in eachindex(a) if p(x)]\n"
-^ "    end\n"
-^ "\n"
-^ "    function heh_shape(a)\n"
-^ "        return [size(a)...]\n"
-^ "    end\n"
-^ "\n"
-^ "    function heh_islim(a)\n"
-^ "        return false\n"
-^ "    end\n"
-^ "\n"
-^ "    function heh_inrange(x, lb, ub)\n"
-^ "        return all(t -> t >= lb[1], x) && all(t -> t < ub[1], x)\n"
-^ "    end\n"
+  "include(\"./HehTestJulia.jl\")\n"
 ^ "\n"
 
 let call_jl_main =
-  "print(HehJulia.main())\n"
+  "println(HehJulia.main())\n"
 ^ "\n"
 
 let compile e m =
@@ -413,7 +378,7 @@ let compile e m =
     let out = open_out !Globals.julia_out_file in
     fprintf out "module HehJulia\n";
     fprintf out "%s" jl_funs;
-    fprintf out "    # --- generated julia-code ---\n\n";
+    fprintf out "# --- generated julia-code ---\n\n";
     print_jl_prog out p;
     fprintf out "end # module HehJulia\n\n";
     Printf.fprintf out "%s" call_jl_main;
