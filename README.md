@@ -38,7 +38,7 @@ Currently we are working on:
   * Designing a type system for Heh.  The main challenge is to keep the type system decidable,
     yet propagate as much of the shape information as possible.  Knowing shapes of all the arrays
     statically vastly improves the runtime.  Currently we are investigating whether the
-    [SaC](http://www.sac-home.org/doku.php) approach of combining sub-typing and intersection types
+    [SaC][sac] approach of combining sub-typing and intersection types
     is powerful enough.  Going full dependent types is an option, but we will use this if everything
     else would fail.  Also, how excalty one needs to treat ordinals in types is far from obvious.
     
@@ -94,7 +94,7 @@ res: p14 = 42
 The output contains:
   1. the text of a program
   2. the resulting pointer and value of the evaluated program.
-  
+
 The interpreter comes with a few flags, which description is available via `./main/native --help`.
 
 The interpreter comes with a number of examples available in the `examples` directory.
@@ -105,7 +105,17 @@ The unit tests can be run as follows `./test.native`.
 
 This repository uses travis continuous integration.  See `.travis.yml` file for more details.
 
-# Syntax hilighting
+# Generating Code For Other Languages
+
+Heh provides a fascility to generate code for a few different languages, currently we support
+generating:
+  * [SaC][sac] (using the `-compile-sac <FILE>` flag)
+  * [Julia][julia] (using the `-compile-julia <FILE>` flag)
+
+# Syntax Highlighting
 
 Heh comes with a syntax highlighting description for Vim.
 Copy `vim/heh.vim` into `~/.vim/syntax` to make use of it.
+
+[sac]: http://www.sac-home.org/doku.php
+[julia]: https://julialang.org/
