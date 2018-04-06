@@ -47,7 +47,7 @@ and jl_expr =
     | JlArray of jl_expr list
     (* array, index *)
     | JlSel of jl_expr * jl_expr
-    | JlBinop of jl_expr * string * jl_expr
+    | JlBinop of jl_expr * string * jl_expr * bool
     | JlVar of string
     | JlFuncall of string * (jl_expr list)
 
@@ -81,7 +81,7 @@ let rec print_jl_expr oc level e =
             fprintf oc "false"
 
     | JlNum n ->
-            fprintf oc "%d" n
+            fprintf oc "heh_create_num(%d)" n
 
     | JlArray lst ->
             fprintf oc "heh_create_array(";
@@ -96,10 +96,14 @@ let rec print_jl_expr oc level e =
             print_jl_expr oc level idx;
             fprintf oc ")";
 
-    | JlBinop (a, op, b) ->
+    | JlBinop (a, op, b, comp) ->
+            if comp then
+                fprintf oc "all(";
             print_jl_expr oc level a;
             fprintf oc " %s " op;
             print_jl_expr oc level b;
+            if comp then
+                fprintf oc ")";
 
     | JlVar x ->
             fprintf oc "%s" x
@@ -158,7 +162,7 @@ and print_jl_fun oc level f =
         fprintf oc "# %s\n" f.comment;
 
     prind oc level;
-    fprintf oc "function %s" f.name;
+    fprintf oc "@inline function %s" f.name;
     print_jl_params oc f.params;
     fprintf oc "\n";
     print_jl_stmts oc level f.body;
@@ -208,21 +212,21 @@ let rec compile_stmts stmts e =
             let stmts, var1 = compile_stmts stmts e1 in
             let stmts, var2 = compile_stmts stmts e2 in
             let res_var = fresh_var_name () in
-            let opname =
+            let (opname, iscomp) =
                 match op with
-                | OpPlus  -> "+"
-                | OpMinus -> "-"
-                | OpDiv   -> "/"
-                | OpMod   -> "%"
-                | OpMult  -> "*"
-                | OpLt    -> "<"
-                | OpLe    -> "<="
-                | OpGt    -> ">"
-                | OpGe    -> ">="
-                | OpEq    -> "=="
-                | OpNe    -> "!="
+                | OpPlus  -> (".+", false)
+                | OpMinus -> (".-", false)
+                | OpDiv   -> ("./", false)
+                | OpMod   -> (".%", false)
+                | OpMult  -> (".*", false)
+                | OpLt    -> (".<", true)
+                | OpLe    -> (".<=", true)
+                | OpGt    -> (".>", true)
+                | OpGe    -> (".>=", true)
+                | OpEq    -> (".==", true)
+                | OpNe    -> (".!=", true)
             in
-            let binop = JlBinop (JlVar var1, opname,  JlVar var2) in
+            let binop = JlBinop (JlVar var1, opname,  JlVar var2, iscomp) in
             (stmts @ [JlAssign (res_var, binop)], res_var)
 
     | { expr_kind = EUnary (op, e1) } ->
@@ -358,57 +362,63 @@ let compile_jl_function name varlst expr =
 
 (* we indent this by one level as this is part of the module *)
 let jl_funs =
-  "function heh_tup2arr(t::Tuple)\n"
-^ "    return [t...]\n"
+  "@inline function heh_tup2arr(t::Tuple)\n"
+^ "    return heh_create_array(t...)\n"
 ^ "end\n"
 ^ "\n"
-^ "function heh_arr2tup(a::Array)\n"
+^ "@inline function heh_arr2tup(a::Array)\n"
 ^ "    return (a...)\n"
 ^ "end\n"
 ^ "\n"
-^ "function heh_access_array(a::Array, t::Array)\n"
-^ "    return getindex(a, t+1...)\n"
+^ "@inline function heh_access_array(a::Array, t::Array)\n"
+^ "    return heh_create_num(getindex(a, t+1...))\n"
 ^ "end\n"
 ^ "\n"
-^ "function heh_access_array(a::Int, t::Array)\n"
-^ "    if t[1] != 1\n"
-^ "        error(\"Trying to access integer at non-one index: \", t)\n"
+^ "@inline function heh_create_array(args::Int...)\n"
+^ "    return Int[args...]\n"
+^ "end\n"
+^ "\n"
+^ "@inline function heh_create_array(args::Array...)\n"
+^ "    res = Array{Array{Int, length(size(args[1]))}, 1}(length(args))\n"
+^ "\n"
+^ "    for idx in eachindex(res)\n"
+^ "        res[idx] = args[idx]\n"
 ^ "    end\n"
-^ "    return a\n"
+^ "\n"
+^ "    flt = collect(Iterators.flatten(res))\n"
+^ "    rsh = reshape(flt, tuple(length(args)...,size(args[1])...))\n"
+^ "\n"
+^ "    return rsh\n"
 ^ "end\n"
 ^ "\n"
-^ "function heh_create_array(args...)\n"
-^ "    ArraysOrInts = Union{Array, Int}\n"
+^ "@inline function heh_create_array()\n"
+^ "    return Array{Int,1}()\n"
+^ "end\n"
 ^ "\n"
-^ "    if length(args) == 0\n"
-^ "        res = Array{Int,1}[]\n"
+^ "@inline function heh_create_num(i::Int)\n"
+^ "    res = Array{Int,0}()\n"
+^ "    res[] = i\n"
+^ "    return res\n"
+^ "end\n"
+^ "\n"
+^ "@inline function heh_imap(s1::Array, s2::Array, f)\n"
+^ "    res = Array{Array{Int, length(heh_arr2tup(s2))}, length(heh_arr2tup(s1))}(heh_arr2tup(s1))\n"
+^ "\n"
+^ "    for idx in eachindex(res)\n"
+^ "        res[idx] = f(heh_tup2arr(ind2sub(res, idx))-1)\n"
+^ "    end\n"
+^ "\n"
+^ "    if all(size(res) .!= 0) # FIXME this might be too extreme (arrays of shape\n"
+^ "                            #       (0,) cannot be flattened)\n"
+^ "        flt = collect(Iterators.flatten(res))\n"
+^ "        rsh = reshape(flt, tuple(s1..., s2...))\n"
 ^ "    else\n"
-^ "        if isa(args[1], Number)\n"
-^ "            res = [args...]\n"
-^ "        elseif isa(args[1], Array)\n"
-^ "            tmp = [args...]\n"
-^ "            res = hcat(tmp...)'\n"
-^ "        else\n"
-^ "            throw(TypeError(:heh_create_array, \"Incorrect type given\", ArraysOrInts, args[1]))\n"
-^ "        end\n"
+^ "        rsh = reshape(res, tuple(s1..., s2...))\n"
 ^ "    end\n"
-^ "\n"
-^ "    return res\n"
+^ "    return rsh\n"
 ^ "end\n"
 ^ "\n"
-^ "function heh_imap(s1::Array, s2::Array, f)\n"
-^ "    vals = similar(Array{Array}, heh_arr2tup(s1))\n"
-^ "    res = similar(Array{Int}, heh_arr2tup(s1))\n"
-^ "\n"
-^ "    # populate vals with all 'indices'\n"
-^ "    for idx in eachindex(vals)\n"
-^ "        vals[idx] = heh_tup2arr(ind2sub(vals, idx))-1\n"
-^ "    end\n"
-^ "    map!(f, res, vals)\n"
-^ "    return res\n"
-^ "end\n"
-^ "\n"
-^ "function heh_reduce(f, neut::Int, a::Array)\n"
+^ "@inline function heh_reduce(f, neut::Array, a::Array)\n"
 ^ "    res = neut\n"
 ^ "    for x in eachindex(a)\n"
 ^ "        res = f(x, res)\n"
@@ -417,33 +427,25 @@ let jl_funs =
 ^ "    return res\n"
 ^ "end\n"
 ^ "\n"
-^ "function heh_reduce(f, neut::Int, a::Int)\n"
-^ "    return f(a, neut)\n"
-^ "end\n"
-^ "\n"
-^ "function heh_filter(p, a::Array)\n"
+^ "@inline function heh_filter(p, a::Array)\n"
 ^ "    return filter(p, a)\n"
 ^ "end\n"
 ^ "\n"
-^ "function heh_shape(a::Array)\n"
+^ "@inline function heh_shape(a::Array)\n"
 ^ "    return heh_tup2arr(size(a))\n"
 ^ "end\n"
 ^ "\n"
-^ "function heh_shape(a::Int)\n"
-^ "    return [1]\n"
-^ "end\n"
-^ "\n"
-^ "function heh_islim(a)\n"
+^ "@inline function heh_islim(a::Any)\n"
 ^ "    return false\n"
 ^ "end\n"
 ^ "\n"
-^ "function heh_inrange(iv::Array, lb::Array, ub::Array)\n"
+^ "@inline function heh_inrange(iv::Array, lb::Array, ub::Array)\n"
 ^ "    return all(lb .<= iv) && all(iv .< ub)\n"
 ^ "end\n"
 ^ "\n"
 
 let call_jl_main =
-  "println(HehJulia.main())\n"
+  "println(main())\n"
 ^ "\n"
 
 let compile e m =
@@ -457,10 +459,8 @@ let compile e m =
 
     let p = p @ [compile_main e] in
     let out = open_out !Globals.julia_out_file in
-    fprintf out "module HehJulia\n";
     fprintf out "%s" jl_funs;
     fprintf out "# --- generated julia-code ---\n\n";
     print_jl_prog out p;
-    fprintf out "end # module HehJulia\n\n";
     Printf.fprintf out "%s" call_jl_main;
     close_out out
