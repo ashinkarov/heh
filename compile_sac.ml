@@ -297,9 +297,9 @@ let rec compile_stmts stmts e =
             let stmts, var1 = compile_stmts stmts e_out in
             let stmts, var2 = compile_stmts stmts e_in in
             (* Concat shape vectors into shp_var *)
-            let shp_var = fresh_var_name () in
+            (*let shp_var = fresh_var_name () in
             let funcall = SacFuncall ("vec_concat", [SacVar var1; SacVar var2]) in
-            let stmts = stmts @ [SacAssign (shp_var, funcall)] in
+            let stmts = stmts @ [SacAssign (shp_var, funcall)] in*)
             (* Emit code for all the generator expressions.  *)
             let gen_code = List.map
                            (fun ge ->
@@ -321,7 +321,7 @@ let rec compile_stmts stmts e =
                            var_gen_expr_lst in
 
             let res_var = fresh_var_name () in
-            let wl_kind = SacGenarray (SacVar shp_var, SacNum 0) in
+            let wl_kind = SacGenarray (SacVar var1, SacFuncall ("zeroes", [SacVar var2])) in
             let wl = SacWith (wl_parts, wl_kind) in
             (stmts @ [SacAssign (res_var, wl)], res_var)
 
@@ -401,6 +401,13 @@ let sac_funs =
 ^ "zero_vec (int[.] x)\n"
 ^ "{\n"
 ^ "   return with {}: genarray (_shape_A_ (x), 0);\n"
+^ "}\n"
+^ "\n"
+^ "\n"
+^ "int[*]\n"
+^ "zeroes (int[.] s)\n"
+^ "{\n"
+^ "  return with{}: genarray (s, 0);\n"
 ^ "}\n"
 ^ "\n"
 ^ "\n"
