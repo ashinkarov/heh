@@ -45,7 +45,7 @@ let rec print_sep_list ?(sep=", ") oc f args =
     match args with
     | [] -> ()
     | x :: [] -> f x;
-    | x :: t  -> f x; fprintf oc "%s" sep; print_sep_list oc f t
+    | x :: t  -> f x; fprintf oc "%s" sep; print_sep_list ~sep:sep oc f t
 
 let rec varlst_to_str vars =
     match vars with
@@ -62,16 +62,15 @@ let rec print_apl_expr oc level e =
             fprintf oc "%s" x
 
     | AplFuncall (f, args) ->
-            
-            fprintf oc "%s (" f;
-            print_sep_list oc 
+
+            fprintf oc "%s " f;
+            print_sep_list oc
                 ~sep:" "
-                (fun e -> 
+                (fun e ->
                     fprintf oc "(";
                     print_apl_expr oc level e;
                     fprintf oc ")")
-                args;
-            fprintf oc ")"
+                args
 
     | AplBinop (op, a, b) ->
             fprintf oc "(" ;
@@ -321,21 +320,21 @@ let rec compile_stmts stmts e =
             let stmts, fname = compile_stmts stmts e_fun in
             let stmts, neut  = compile_stmts stmts e_neut in
             let stmts, arg   = compile_stmts stmts e_arg in
-            
+
             let red_fun_name = "red_" ^ fresh_var_name () in
             let red_stmts = [
                 AplAssign (Some ["a"], AplVar "⍵");
                 AplAssign (Some ["empty_p"], AplBinop ("≡", AplVar "a", AplVar "⍬"));
                 AplAssign (None, AplBinop (":", AplVar "empty_p", AplVar neut));
-                AplAssign (Some ["unit_p"], 
-                           AplBinop ("=", AplBinop ("/", AplVar "×", 
+                AplAssign (Some ["unit_p"],
+                           AplBinop ("=", AplBinop ("/", AplVar "×",
                                                          AplUnop ("⍴", AplVar "a")),
                                           AplNum 1));
-                AplFundef (mk_apl_function 
+                AplFundef (mk_apl_function
                                "ff"
                                [AplAssign (None,
                                            AplFuncall (fname, [AplVar "⍺"; AplVar "⍵"]))]);
-                AplAssign (None, 
+                AplAssign (None,
                            AplBinop (":", AplVar "unit_p",
                                           AplFuncall (fname, [AplVar neut;
                                                               AplBinop ("⌷", AplNum 0, AplVar "a")])));
@@ -345,23 +344,20 @@ let rec compile_stmts stmts e =
 
             (* get the shape of the argument *)
             let res_var = fresh_var_name () in
-            let stmt = AplAssign (Some [res_var], 
+            let stmt = AplAssign (Some [res_var],
                                   AplFuncall (red_fun_name, [AplUnop (",", AplVar arg)])) in
             (stmts @ [AplFundef red_fun; stmt], res_var)
 
-    | _ -> failwith "Not yet"
-    (*
     | { expr_kind = EFilter (e_fun, e_arg) } ->
             let stmts, fname = compile_stmts stmts e_fun in
             let stmts, arg   = compile_stmts stmts e_arg in
 
             (* get the shape of the argument *)
             let res_var = fresh_var_name () in
-            let stmt = CAssign (None, CFuncall ("FILTER_LOOP",
-                                                [CVar arg; CVar fname;
-                                                 CVar res_var])) in
-            (stmts @ [CDecl (res_var, None); stmt], res_var)
-*)
+            let stmt = AplAssign (Some [res_var],
+                                  AplBinop ("/", AplBinop ("¨", AplVar fname, AplVar arg),
+                                                 AplVar arg)) in
+            (stmts @ [stmt], res_var)
 
 
 let compile_main (e: Ast.expr) =
