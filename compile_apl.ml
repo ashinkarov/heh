@@ -62,7 +62,16 @@ let rec print_apl_expr oc level e =
             fprintf oc "%s" x
 
     | AplFuncall (f, args) ->
-            fprintf oc "%s (" f; print_sep_list oc (print_apl_expr oc level) args; fprintf oc ")"
+            
+            fprintf oc "%s (" f;
+            print_sep_list oc 
+                ~sep:" "
+                (fun e -> 
+                    fprintf oc "(";
+                    print_apl_expr oc level e;
+                    fprintf oc ")")
+                args;
+            fprintf oc ")"
 
     | AplBinop (op, a, b) ->
             fprintf oc "(" ;
@@ -308,20 +317,40 @@ let rec compile_stmts stmts e =
             let res_var, p_stmts = List.hd parts in
             (stmts @ p_stmts, res_var)
 
-    | _ -> failwith "Not yet"
-    (*
     | { expr_kind = EReduce (e_fun, e_neut, e_arg) } ->
             let stmts, fname = compile_stmts stmts e_fun in
             let stmts, neut  = compile_stmts stmts e_neut in
             let stmts, arg   = compile_stmts stmts e_arg in
+            
+            let red_fun_name = "red_" ^ fresh_var_name () in
+            let red_stmts = [
+                AplAssign (Some ["a"], AplVar "⍵");
+                AplAssign (Some ["empty_p"], AplBinop ("≡", AplVar "a", AplVar "⍬"));
+                AplAssign (None, AplBinop (":", AplVar "empty_p", AplVar neut));
+                AplAssign (Some ["unit_p"], 
+                           AplBinop ("=", AplBinop ("/", AplVar "×", 
+                                                         AplUnop ("⍴", AplVar "a")),
+                                          AplNum 1));
+                AplFundef (mk_apl_function 
+                               "ff"
+                               [AplAssign (None,
+                                           AplFuncall (fname, [AplVar "⍺"; AplVar "⍵"]))]);
+                AplAssign (None, 
+                           AplBinop (":", AplVar "unit_p",
+                                          AplFuncall (fname, [AplVar neut;
+                                                              AplBinop ("⌷", AplNum 0, AplVar "a")])));
+                AplAssign (None, AplBinop ("/", AplVar "ff", AplVar "a"))] in
+
+            let red_fun = mk_apl_function red_fun_name red_stmts in
 
             (* get the shape of the argument *)
             let res_var = fresh_var_name () in
-            let stmt = CAssign (None, CFuncall ("REDUCE_LOOP",
-                                                [CVar arg; CVar neut;
-                                                 CVar fname; CVar res_var])) in
-            (stmts @ [CDecl (res_var, None); stmt], res_var)
+            let stmt = AplAssign (Some [res_var], 
+                                  AplFuncall (red_fun_name, [AplUnop (",", AplVar arg)])) in
+            (stmts @ [AplFundef red_fun; stmt], res_var)
 
+    | _ -> failwith "Not yet"
+    (*
     | { expr_kind = EFilter (e_fun, e_arg) } ->
             let stmts, fname = compile_stmts stmts e_fun in
             let stmts, arg   = compile_stmts stmts e_arg in
