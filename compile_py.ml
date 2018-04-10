@@ -38,6 +38,7 @@ and py_stmt =
     | PyCond of py_expr * (py_stmt list) * (py_stmt list)
     | PyCond1 of py_expr * (py_stmt list)
     | PyFundef of py_function
+    | PyForeach of string * py_expr * (py_stmt list)
 
 and py_expr =
     | PyNone
@@ -127,6 +128,12 @@ and print_py_stmt oc level s =
             prind oc level;
             fprintf oc "if ("; print_py_expr oc level e; fprintf oc "):\n";
             print_py_stmts oc level stmts1;
+
+    | PyForeach (var, init, stmts) ->
+            prind oc level;
+            fprintf oc "for %s in (" var;
+            print_py_expr oc level init; fprintf oc "):\n";
+            print_py_stmts oc level stmts;
 
     | PyReturn (e) ->
             prind oc level;
@@ -312,7 +319,7 @@ let rec compile_stmts stmts e =
             let stmts_lst_gens, var_gen_expr_lst = List.split gen_code in
             let stmts = stmts @ List.flatten stmts_lst_gens in
 
-            let idx_var = fresh_var_name () in
+            (*let idx_var = fresh_var_name () in
 
             let fstmts = List.map
                            (fun var_gen_expr ->
@@ -328,7 +335,35 @@ let rec compile_stmts stmts e =
 
             let res_var = fresh_var_name () in
             let imap = PyFuncall ("heh_imap", [PyVar var1; PyVar var2; PyVar fun_name]) in
-            (stmts @ [PyAssign (res_var, imap)], res_var)
+            (stmts @ [PyAssign (res_var, imap)], res_var) *)
+
+            let res_var = fresh_var_name () in
+            let res_sh = PyFuncall ("tuple",
+                                    [PyBinop (PyFuncall ("list", [PyVar var1]),
+                                              "+",
+                                              PyFuncall ("list", [PyVar var2]))]) in
+            let res_stmt = PyAssign (res_var,
+                                     PyFuncall ("np.empty",
+                                                [res_sh; PyVar "dtype=int" (* HACK *)])) in
+            let fstmts = List.map
+                         (fun var_gen_expr ->
+                          let var_lb, x, var_ub, e = var_gen_expr in
+                          let stmts, part_res = compile_stmts [] e in
+                          let idx_var = "idx_" ^ fresh_var_name () in
+                          let stmts = [PyAssign (x, PyBinop (PyVar idx_var, "+", PyVar (var_lb)))]
+                                      @ stmts
+                                      @ [PyAssign ((sprintf "%s[%s]" res_var x),
+                                                   PyVar part_res)] in
+                          PyForeach (idx_var,
+                                     PyFuncall ("np.ndindex",
+                                                [PyFuncall ("*tuple",
+                                                            [PyBinop (PyVar var_ub,
+                                                             "-", PyVar var_lb)])]),
+                                     stmts))
+                         var_gen_expr_lst in
+
+
+            (stmts @ [res_stmt] @ fstmts, res_var)
 
 let compile_main (e: Ast.expr) =
     let stmts, var = compile_stmts [] e in
