@@ -173,7 +173,7 @@ let print_sac_fun oc f =
     if f.name = "main" then
         fprintf oc "int\nmain "
     else
-        fprintf oc "int[*]\n%s " f.name
+        fprintf oc "inline int[*]\n%s " f.name
     ;
     print_sac_params oc f.params;
     fprintf oc "\n";
@@ -397,7 +397,7 @@ let sac_funs =
 ^ "}\n"
 ^ "\n"
 ^ "\n"
-^ "int[.]\n"
+^ "inline int[.]\n"
 ^ "zero_vec (int[.] x)\n"
 ^ "{\n"
 ^ "   return with {}: genarray (_shape_A_ (x), 0);\n"
@@ -411,7 +411,7 @@ let sac_funs =
 ^ "}\n"
 ^ "\n"
 ^ "\n"
-^ "int[.]\n"
+^ "inline int[.]\n"
 ^ "vec_concat (int[.] x, int[.] y)\n"
 ^ "{\n"
 ^ "  l1 = _sel_VxA_ ([0], _shape_A_ (x));\n"
