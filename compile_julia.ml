@@ -372,10 +372,13 @@ let rec compile_stmts stmts e =
                         let idx_var = "idx_" ^ fresh_var_name () in
                         let stmts = [JlAssign(x, JlBinop(JlVar idx_var, ".+", JlVar var_lb, false))]
                                     @ stmts
-                                    @ [JlVoid (JlFuncall("setindex!", [JlVar res_var; JlExpand (JlVar part_res); JlExpand (JlVar x)]))] in
+                                    @ [JlVoid (JlFuncall("setindex!", [JlVar res_var; JlExpand (JlVar part_res); JlExpand (JlBinop(JlVar x, "+", JlVar "1", false))]))] in
                         JlForeach (idx_var,
-                                   JlFuncall("1:_length",
-                                      [JlExpand (JlBinop(JlVar var_ub, ".-", JlVar var_lb, false))]),
+                                   JlBinop(
+                                     JlFuncall("0:_length",
+                                        [JlExpand (JlBinop(JlVar var_ub, ".-", JlVar var_lb, false))]),
+                                     "-",
+                                     JlVar "1", false),
                                    stmts))
                         var_gen_expr_lst in
 
@@ -412,8 +415,7 @@ let jl_funs =
 ^ "end\n"
 ^ "\n"
 ^ "@inline function heh_access_array(a::Array, t::Array)\n"
-^ "    # if we use heh_imap, must add `+1' to t...\n"
-^ "    return heh_create_num(getindex(a, t...))\n"
+^ "    return heh_create_num(getindex(a, t+1...))\n"
 ^ "end\n"
 ^ "\n"
 ^ "@inline function heh_create_array(args::Int...)\n"
