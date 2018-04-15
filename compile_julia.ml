@@ -34,10 +34,12 @@ and jl_function = { name: string;
 
 and jl_stmt =
     | JlAssign of string * jl_expr
+    | JlVoid of jl_expr
     | JlReturn of jl_expr
     | JlCond of jl_expr * (jl_stmt list) * (jl_stmt list)
     | JlCond1 of jl_expr * (jl_stmt list)
     | JlFundef of jl_function
+    | JlForeach of string * jl_expr * (jl_stmt list)
 
 and jl_expr =
     | JlNull
@@ -49,6 +51,7 @@ and jl_expr =
     | JlSel of jl_expr * jl_expr
     | JlBinop of jl_expr * string * jl_expr * bool
     | JlVar of string
+    | JlExpand of jl_expr
     | JlFuncall of string * (jl_expr list)
 
 (* Helper mk_ functions.  *)
@@ -108,6 +111,10 @@ let rec print_jl_expr oc level e =
     | JlVar x ->
             fprintf oc "%s" x
 
+    | JlExpand (e) ->
+            print_jl_expr oc level e;
+            fprintf oc "...";
+
     | JlFuncall (f, args) ->
             fprintf oc "%s(" f; print_sep_list oc (print_jl_expr oc level) args; fprintf oc ")"
 
@@ -116,6 +123,9 @@ and print_jl_stmt oc level s =
     | JlAssign (s, e) ->
             prind oc level; fprintf oc "%s = " s;
             print_jl_expr oc level e; fprintf oc "\n"
+
+    | JlVoid (e) ->
+            prind oc level; print_jl_expr oc level e; fprintf oc "\n"
 
     | JlCond (e, stmts1, stmts2) ->
             prind oc level;
@@ -130,6 +140,13 @@ and print_jl_stmt oc level s =
     | JlCond1 (e, stmts1) ->
             prind oc level;
             fprintf oc "if ("; print_jl_expr oc level e; fprintf oc ")\n";
+            print_jl_stmts oc level stmts1;
+            prind oc level;
+            fprintf oc "end\n";
+
+    | JlForeach (s, e, stmts1) ->
+            prind oc level;
+            fprintf oc "for %s in " s; print_jl_expr oc level e; fprintf oc "\n";
             print_jl_stmts oc level stmts1;
             prind oc level;
             fprintf oc "end\n";
@@ -322,6 +339,8 @@ let rec compile_stmts stmts e =
             let stmts_lst_gens, var_gen_expr_lst = List.split gen_code in
             let stmts = stmts @ List.flatten stmts_lst_gens in
 
+            (* introduce HO function *)
+            (*
             let idx_var = fresh_var_name () in
 
             let fstmts = List.map
@@ -339,6 +358,28 @@ let rec compile_stmts stmts e =
             let res_var = fresh_var_name () in
             let imap = JlFuncall ("heh_imap", [JlVar var1; JlVar var2; JlVar fun_name]) in
             (stmts @ [JlAssign (res_var, imap)], res_var)
+            *)
+
+            (* introduce inline for-each loops *)
+            let res_var = fresh_var_name () in
+            let res_shp = JlFuncall("heh_add_arrays", [JlVar var1; JlVar var2]) in
+            let res_stmt = JlAssign(res_var, JlFuncall("Array{Int}", [JlExpand res_shp])) in
+
+            let fstmts = List.map
+                    (fun var_gen_expr ->
+                        let var_lb, x, var_ub, e = var_gen_expr in
+                        let stmts, part_res = compile_stmts [] e in
+                        let idx_var = "idx_" ^ fresh_var_name () in
+                        let stmts = [JlAssign(x, JlBinop(JlVar idx_var, ".+", JlVar var_lb, false))]
+                                    @ stmts
+                                    @ [JlVoid (JlFuncall("setindex!", [JlVar res_var; JlExpand (JlVar part_res); JlExpand (JlVar x)]))] in
+                        JlForeach (idx_var,
+                                   JlFuncall("1:_length",
+                                      [JlExpand (JlBinop(JlVar var_ub, ".-", JlVar var_lb, false))]),
+                                   stmts))
+                        var_gen_expr_lst in
+
+            (stmts @ [res_stmt] @ fstmts, res_var)
 
 let compile_main (e: Ast.expr) =
     let stmts, var = compile_stmts [] e in
@@ -371,7 +412,8 @@ let jl_funs =
 ^ "end\n"
 ^ "\n"
 ^ "@inline function heh_access_array(a::Array, t::Array)\n"
-^ "    return heh_create_num(getindex(a, t+1...))\n"
+^ "    # if we use heh_imap, must add `+1' to t...\n"
+^ "    return heh_create_num(getindex(a, t...))\n"
 ^ "end\n"
 ^ "\n"
 ^ "@inline function heh_create_array(args::Int...)\n"
@@ -441,6 +483,21 @@ let jl_funs =
 ^ "\n"
 ^ "@inline function heh_inrange(iv::Array, lb::Array, ub::Array)\n"
 ^ "    return all(lb .<= iv) && all(iv .< ub)\n"
+^ "end\n"
+^ "\n"
+^ "@inline function heh_add_arrays(A::Array, B::Array)\n"
+^ "    if size(A) == (0,) # empty array\n"
+^ "        return B\n"
+^ "    elseif size(B) == (0,)\n"
+^ "        return A\n"
+^ "    else\n"
+^ "        return A .+ B\n"
+^ "    end\n"
+^ "end\n"
+^ "\n"
+^ "@inline _length(a::Int) = a\n"
+^ "@inline function _length(a::Int, b::Int, c::Int...)\n"
+^ "    return max(_length(a), _length(b, c...))\n"
 ^ "end\n"
 ^ "\n"
 
