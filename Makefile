@@ -16,6 +16,7 @@ SRC := ast.ml \
        traversal.ml \
        lifting.ml \
        compile_sac.ml \
+       compile_julia.ml \
        print.ml
 
 TEST_SRC := \
