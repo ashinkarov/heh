@@ -285,36 +285,37 @@ let rec compile_stmts stmts e =
                             (stmts, (var_lb, x, var_ub, e)))
                            ge_lst in
 
-            (* FIXME if we have more partitions, how do we combine then? *)
-            assert (List.length ge_lst <= 1);
-
             let stmts_lst_gens, var_gen_expr_lst = List.split gen_code in
             let stmts = stmts @ List.flatten stmts_lst_gens in
 
-            let parts = List.map
-                        (fun var_gen_expr ->
+            let init_wl_var = fresh_var_name () in
+            let init_wl_stmt = AplAssign (Some [init_wl_var],
+                                          AplBinop ("⍴", AplVar var1, AplNum 0)) in
+
+            let stmts, wl_var = List.fold_left
+                        (fun prev_stmts_var var_gen_expr ->
                         let var_lb, x, var_ub, e = var_gen_expr in
+                        let prev_stmts, cur_wl = prev_stmts_var in
                         let stmts, part_res_var = compile_stmts [] e in
-                        let iter =  AplBinop ("indexset", AplVar var_lb, AplVar var_ub) in
-                        let iter_var = fresh_var_name () in
-                        let iter_assign = AplAssign (Some [iter_var], iter) in
                         let part_fun_name = fresh_var_name () in
                         let part_fun =
                             mk_apl_function part_fun_name
                                             ([AplAssign (Some [x], AplVar "⍵")]
                                              @ stmts
                                              @ [AplAssign (None, AplVar part_res_var)]) in
-                        let res = fresh_var_name () in
-                        (res, [iter_assign;
-                               AplFundef (part_fun);
-                               AplAssign (Some [res],
-                                          (* XXX some cheating here.  *)
-                                          AplBinop ("⍤1 ⊢", AplVar part_fun_name, AplVar iter_var))]))
+                        let new_wl = fresh_var_name () in
+                        let stmts = prev_stmts @ [
+                                    AplFundef (part_fun);
+                                    AplAssign (Some [new_wl],
+                                               AplFuncall (Printf.sprintf "%s %s imap"
+                                                                          cur_wl part_fun_name,
+                                                           [AplVar var_lb; AplVar var_ub]))] in
+                        (stmts, new_wl))
+                        (stmts @ [init_wl_stmt], init_wl_var)
                         var_gen_expr_lst in
 
-            (* FIXME does not support multiple partitions yet! *)
-            let res_var, p_stmts = List.hd parts in
-            (stmts @ p_stmts, res_var)
+            let res_var = fresh_var_name () in
+            (stmts @ [AplAssign (Some [res_var], AplUnop ("⊃", AplVar wl_var))], res_var)
 
     | { expr_kind = EReduce (e_fun, e_neut, e_arg) } ->
             let stmts, fname = compile_stmts stmts e_fun in
@@ -382,8 +383,20 @@ let apl_header =
 ^ "⎕io←0\n"
 ^ "\n"
 (*^ "indexset ← {⍺ +⍤1 ⊢ ⊃(⍳⍵-⍺)}\n"*)
-^ "indexset ← { ⊃(⊂⍺) + ⍳⍵-⍺ }\n"
+(*^ "indexset ← { ⊃(⊂⍺) + ⍳⍵-⍺ }\n"*)
 ^ "is_limit_ordinal ← { 0 }\n"
+^ "indexset ← { (⊂⍺) + ⍳⍵-⍺ }\n"
+^ "\n"
+^ "∇ imap ← {\n"
+^ "    ⍝ larg fn imap (lb ub)\n"
+^ "    larg←⍺\n"
+^ "    (lb ub)←⍵\n"
+^ "    iv←lb indexset ub\n"
+^ "    empty ← 0 ≡ ×/⍴iv\n"
+^ "    empty : larg\n"
+^ "    vals←⍺⍺ ¨ iv\n"
+^ "    vals@iv ⊢larg\n"
+^ "} ∇\n"
 ^ "\n"
 ^ "\n"
 
