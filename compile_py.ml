@@ -352,7 +352,7 @@ let rec compile_stmts stmts e =
                           let idx_var = "idx_" ^ fresh_var_name () in
                           let stmts = [PyAssign (x, PyBinop (PyVar idx_var, "+", PyVar (var_lb)))]
                                       @ stmts
-                                      @ [PyAssign ((sprintf "%s[%s]" res_var x),
+                                      @ [PyAssign ((sprintf "%s[tuple (%s)]" res_var x),
                                                    PyVar part_res)] in
                           PyForeach (idx_var,
                                      PyFuncall ("np.ndindex",
@@ -361,7 +361,6 @@ let rec compile_stmts stmts e =
                                                              "-", PyVar var_lb)])]),
                                      stmts))
                          var_gen_expr_lst in
-
 
             (stmts @ [res_stmt] @ fstmts, res_var)
 
