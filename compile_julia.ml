@@ -465,7 +465,7 @@ let jl_funs =
 ^ "@inline function heh_reduce(f, neut::Array, a::Array)\n"
 ^ "    res = neut\n"
 ^ "    for x in eachindex(a)\n"
-^ "        res = f(x, res)\n"
+^ "        res = f(a[x], res)\n"
 ^ "    end\n"
 ^ "\n"
 ^ "    return res\n"
