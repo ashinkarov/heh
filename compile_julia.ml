@@ -49,9 +49,12 @@ and jl_expr =
     | JlArray of jl_expr list
     (* array, index *)
     | JlSel of jl_expr * jl_expr
+    | JlExpand of jl_expr
     | JlBinop of jl_expr * string * jl_expr * bool
     | JlVar of string
-    | JlExpand of jl_expr
+    | JlType of string
+    | JlExtendedtype of string * (jl_expr list)
+    | JlTypeinit of jl_expr * (jl_expr list)
     | JlFuncall of string * (jl_expr list)
 
 (* Helper mk_ functions.  *)
@@ -99,6 +102,10 @@ let rec print_jl_expr oc level e =
             print_jl_expr oc level idx;
             fprintf oc ")";
 
+    | JlExpand (e) ->
+            print_jl_expr oc level e;
+            fprintf oc "...";
+
     | JlBinop (a, op, b, comp) ->
             if comp then
                 fprintf oc "all(";
@@ -111,9 +118,14 @@ let rec print_jl_expr oc level e =
     | JlVar x ->
             fprintf oc "%s" x
 
-    | JlExpand (e) ->
-            print_jl_expr oc level e;
-            fprintf oc "...";
+    | JlType t ->
+            fprintf oc "%s" t
+
+    | JlExtendedtype (t, ot) ->
+            fprintf oc "%s{" t; print_sep_list oc (print_jl_expr oc level) ot; fprintf oc "}"
+
+    | JlTypeinit (t, ot) ->
+            print_jl_expr oc level t; fprintf oc "("; print_sep_list oc (print_jl_expr oc level) ot; fprintf oc ")"
 
     | JlFuncall (f, args) ->
             fprintf oc "%s(" f; print_sep_list oc (print_jl_expr oc level) args; fprintf oc ")"
@@ -361,9 +373,14 @@ let rec compile_stmts stmts e =
             *)
 
             (* introduce inline for-each loops *)
+            let inter_var = fresh_var_name () in
             let res_var = fresh_var_name () in
             let res_shp = JlFuncall("heh_add_arrays", [JlVar var1; JlVar var2]) in
-            let res_stmt = JlAssign(res_var, JlFuncall("Array{Int}", [JlExpand res_shp])) in
+            let res_stmt = JlAssign(inter_var, JlTypeinit(
+                JlExtendedtype("Array", [JlExtendedtype("Array", [JlType "Int"; JlFuncall("heh_shp_vec", [JlVar var2])]); JlFuncall("heh_shp_vec", [JlVar var1])]),
+                [JlExpand(JlVar var1)])) in
+            let res_rshp = JlAssign(res_var,
+                JlFuncall("heh_reshape", [JlVar inter_var; res_shp])) in
 
             let fstmts = List.map
                     (fun var_gen_expr ->
@@ -373,13 +390,14 @@ let rec compile_stmts stmts e =
                         let stmts = [JlAssign(x,
                             JlBinop(
                                 JlFuncall("heh_tup2arr", [JlFuncall(
-                                    "ind2sub", [JlVar res_var; JlVar idx_var])]),
+                                    "ind2sub", [JlVar inter_var; JlVar idx_var])]),
                             "+", JlBinop(
                                 JlVar var_lb, "-", JlVar "1", false),
                             false))]
                             @ stmts
                             @ [JlVoid (JlFuncall("setindex!",
-                                [JlVar res_var; JlExpand (JlVar part_res);
+                                [JlVar inter_var;
+                                JlFuncall("heh_create_array", [JlVar part_res]);
                                 JlExpand (
                                     JlBinop(
                                         JlVar x, "+", JlVar "1", false))]))] in
@@ -390,7 +408,7 @@ let rec compile_stmts stmts e =
                                    stmts))
                         var_gen_expr_lst in
 
-            (stmts @ [res_stmt] @ fstmts, res_var)
+            (stmts @ [res_stmt] @ fstmts @ [res_rshp], res_var)
 
 let compile_main (e: Ast.expr) =
     let stmts, var = compile_stmts [] e in
@@ -422,6 +440,24 @@ let jl_funs =
 ^ "    return (a...)\n"
 ^ "end\n"
 ^ "\n"
+^ "@inline function heh_shp_vec(a::Array)\n"
+^ "    res = length(heh_arr2tup(a))\n"
+^ "    if iszero(res)\n"
+^ "        res += 1\n"
+^ "    end\n"
+^ "    return res\n"
+^ "end\n"
+^ "\n"
+^ "@inline heh_reshape(arg::Array, nshp::Tuple) = heh_reshape(arg, heh_tup2arr(nshp))\n"
+^ "@inline function heh_reshape(arg::Array, nshp::Array)\n"
+^ "    flt = hcat(arg...)'\n"
+^ "\n"
+^ "    # remove all zeros elements from shape vector\n"
+^ "    filter!(!iszero, nshp)\n"
+^ "    rsh = reshape(flt, heh_arr2tup(nshp))\n"
+^ "\n"
+^ "    return rsh\n"
+^ "end\n"
 ^ "@inline function heh_access_array(a::Array, t::Array)\n"
 ^ "    return heh_create_num(getindex(a, t+1...))\n"
 ^ "end\n"
@@ -430,6 +466,8 @@ let jl_funs =
 ^ "    return Int[args...]\n"
 ^ "end\n"
 ^ "\n"
+^ "@inline heh_create_array(arg::Array) = arg\n"
+^ "@inline heh_create_array(arg::Array{Int,0}) = heh_reshape(arg, [1])\n"
 ^ "@inline function heh_create_array(args::Array...)\n"
 ^ "    res = Array{Array{Int, length(size(args[1]))}, 1}(length(args))\n"
 ^ "\n"
@@ -437,8 +475,7 @@ let jl_funs =
 ^ "        res[idx] = args[idx]\n"
 ^ "    end\n"
 ^ "\n"
-^ "    flt = collect(Iterators.flatten(res))\n"
-^ "    rsh = reshape(flt, tuple(length(args)...,size(args[1])...))\n"
+^ "    rsh = heh_reshape(res, tuple(length(args)...,size(args[1])...))\n"
 ^ "\n"
 ^ "    return rsh\n"
 ^ "end\n"
@@ -501,7 +538,7 @@ let jl_funs =
 ^ "    elseif size(B) == (0,)\n"
 ^ "        return A\n"
 ^ "    else\n"
-^ "        return A .+ B\n"
+^ "        return vcat(A, B)\n"
 ^ "    end\n"
 ^ "end\n"
 ^ "\n"
