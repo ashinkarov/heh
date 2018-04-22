@@ -370,15 +370,23 @@ let rec compile_stmts stmts e =
                         let var_lb, x, var_ub, e = var_gen_expr in
                         let stmts, part_res = compile_stmts [] e in
                         let idx_var = "idx_" ^ fresh_var_name () in
-                        let stmts = [JlAssign(x, JlBinop(JlVar idx_var, ".+", JlVar var_lb, false))]
-                                    @ stmts
-                                    @ [JlVoid (JlFuncall("setindex!", [JlVar res_var; JlExpand (JlVar part_res); JlExpand (JlBinop(JlVar x, "+", JlVar "1", false))]))] in
+                        let stmts = [JlAssign(x,
+                            JlBinop(
+                                JlFuncall("heh_tup2arr", [JlFuncall(
+                                    "ind2sub", [JlVar res_var; JlVar idx_var])]),
+                            "+", JlBinop(
+                                JlVar var_lb, "-", JlVar "1", false),
+                            false))]
+                            @ stmts
+                            @ [JlVoid (JlFuncall("setindex!",
+                                [JlVar res_var; JlExpand (JlVar part_res);
+                                JlExpand (
+                                    JlBinop(
+                                        JlVar x, "+", JlVar "1", false))]))] in
                         JlForeach (idx_var,
-                                   JlBinop(
-                                     JlFuncall("0:_length",
-                                        [JlExpand (JlBinop(JlVar var_ub, ".-", JlVar var_lb, false))]),
-                                     "-",
-                                     JlVar "1", false),
+                                     JlFuncall("1:_length",
+                                        [JlExpand (JlBinop(
+                                            JlVar var_ub, ".-", JlVar var_lb, false))]),
                                    stmts))
                         var_gen_expr_lst in
 
@@ -497,9 +505,8 @@ let jl_funs =
 ^ "    end\n"
 ^ "end\n"
 ^ "\n"
-^ "@inline _length(a::Int) = a\n"
-^ "@inline function _length(a::Int, b::Int, c::Int...)\n"
-^ "    return max(_length(a), _length(b, c...))\n"
+^ "@inline function _length(args::Int...)\n"
+^ "    return reduce(*, args)\n"
 ^ "end\n"
 ^ "\n"
 
