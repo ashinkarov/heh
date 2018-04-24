@@ -374,24 +374,16 @@ let rec compile_stmts stmts e =
                         let var_lb, x, var_ub, e = var_gen_expr in
                         let stmts, part_res = compile_stmts [] e in
                         let idx_var = "idx_" ^ fresh_var_name () in
-                        let stmts = [JlAssign(x,
-                            JlBinop(
-                                JlFuncall("heh_tup2arr", [JlFuncall(
-                                    "ind2sub", [JlVar inter_var; JlVar idx_var])]),
-                            "+", JlBinop(
-                                JlVar var_lb, "-", JlVar "1", false),
-                            false))]
+                        let stmts = [JlAssign(x, JlVar idx_var)]
                             @ stmts
                             @ [JlVoid (JlFuncall("setindex!",
                                 [JlVar inter_var;
                                 JlFuncall("heh_create_array", [JlVar part_res]);
-                                JlExpand (
-                                    JlBinop(
-                                        JlVar x, "+", JlVar "1", false))]))] in
-                        JlForeach (idx_var,
-                                     JlFuncall("1:_length",
-                                        [JlExpand (JlBinop(
-                                            JlVar var_ub, ".-", JlVar var_lb, false))]),
+                                JlBinop(JlVar x, "+", JlVar "1", false)]))] in
+                        JlForeach (idx_var, JlFuncall("heh_setup_range",
+                                   [JlVar var_lb;
+                                    JlBinop(JlVar var_ub, "-", JlVar "1", false)
+                                   ]),
                                    stmts))
                         var_gen_expr_lst in
 
@@ -442,7 +434,10 @@ let jl_funs =
 ^ "\n"
 ^ "    return rsh\n"
 ^ "end\n"
-^ "@inline function heh_access_array(a::Array, t::Array)\n"
+^ "@inline heh_access_array(a::CartesianIndex, t::Array) = heh_access_array(a.I, t)\n"
+^ "@inline heh_access_array(a::CartesianIndex, t::CartesianIndex) = heh_access_array(a.I, heh_tup2arr(t.I))\n"
+^ "@inline heh_access_array(a::Array, t::CartesianIndex) = heh_access_array(a, heh_tup2arr(t.I))\n"
+^ "@inline function heh_access_array(a::Union{Tuple, Array}, t::Array)\n"
 ^ "    return heh_create_num(getindex(a, t+1...))\n"
 ^ "end\n"
 ^ "\n"
@@ -506,6 +501,12 @@ let jl_funs =
 ^ "\n"
 ^ "@inline function heh_shape(a::AbstractArray)\n"
 ^ "    return heh_tup2arr(size(a))\n"
+^ "end\n"
+^ "\n"
+^ "@inline function heh_setup_range(lb::Array, ub::Array)\n"
+^ "    llb = CartesianIndex(heh_arr2tup(lb))\n"
+^ "    uub = CartesianIndex(heh_arr2tup(ub))\n"
+^ "    return CartesianRange(llb, uub)\n"
 ^ "end\n"
 ^ "\n"
 ^ "@inline function heh_islim(a::Any)\n"
