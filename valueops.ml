@@ -96,7 +96,10 @@ let mk_array_value shp_vec data_vec =
     if ord_to_nat elcount <> List.length data_vec then
         value_err @@ sprintf "mk_array: shape [%s] does not match data [%s]"
                              (val_lst_to_str shp_vec) (val_lst_to_str data_vec);
-    VArray (shp_vec, data_vec)
+    if shp_vec = [] then
+        List.hd data_vec
+    else
+        VArray (shp_vec, data_vec)
 
 
 let mk_closure_value e env =

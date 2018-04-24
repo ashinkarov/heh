@@ -442,7 +442,7 @@ let rec shape st env p =
     | VNum _ ->
             (st, mk_empty_vector ())
     | VArray (shp, _) ->
-            (st, VArray ([mk_int_value (List.length shp)], shp))
+            (st, mk_array_value [mk_int_value (List.length shp)] shp)
     | VClosure (_, _) ->
             (st, mk_empty_vector ())
     | VImap (p1, p2, _, _) ->
@@ -458,7 +458,8 @@ let rec shape st env p =
             else begin
                 let s1, d1 = value_array_to_pair v1 in
                 let s2, d2 = value_array_to_pair v2 in
-                let v = VArray ([value_num_add (List.hd s1) (List.hd s2)], (List.append d1 d2)) in
+                let v = mk_array_value [value_num_add (List.hd s1) (List.hd s2)] 
+                                       (List.append d1 d2) in
                 (st, v)
             end
 
@@ -970,7 +971,7 @@ and force_obj_to_array st env p loc =
 
         let idx_it = if value_num_vec_lt lb shp_vec then (Nxt (lb)) else Done in
         let st, res = _force st idx_it lb shp_vec p [] in
-        st_update st p (VArray (shp_vec, List.rev @@ res))
+        st_update st p (mk_array_value shp_vec (List.rev res))
 
 
 and force_imap_to_array st p =
