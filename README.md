@@ -34,18 +34,27 @@ We have shown that the number of array equalities from various array algebras ho
 As an example, consider `drop |a| (a ++ b) == b`, where `a` and `b` are of infinite shape, `++` is
 concatenation over the first axis and `drop` is an inverse of `++`.
 
+There is a backend that compiles programs with non-recursive finite imaps can into SaC.
+See [sac backend](https://github.com/ashinkarov/heh/blob/master/compile_sac.ml) for more details.
+
+Further we have explored Heh compilation into Python, APL, Julia and C in
+[this paper](http://ashinkarov.github.io/publications/rosetta-stone.pdf).
+
+We explore how to bring the power of recursive imaps into a strict language.  We found a neat way to
+do this, making sure that parallel execution of such recursively specified arrays is possible.
+See [this paper](http://ashinkarov.github.io/publications/array-comp.pdf) for more details.
+
+
 Currently we are working on:
   * Designing a type system for Heh.  The main challenge is to keep the type system decidable,
     yet propagate as much of the shape information as possible.  Knowing shapes of all the arrays
     statically vastly improves the runtime.  Currently we are investigating whether the
     [SaC](http://www.sac-home.org/doku.php) approach of combining sub-typing and intersection types
-    is powerful enough.  Going full dependent types is an option, but we will use this if everything
-    else would fail.  Also, how excalty one needs to treat ordinals in types is far from obvious.
+    is powerful enough.  Alternatively, dependent types offer a solution, but they do have potential
+    impact on the performace.  The excalt treatment ordinals within the type system is not yet clear.
     
-  * Compiling Heh.  If heh programs only use non-recursive finite imaps can be directly transformed
-    to SaC programs, which are known to deliver good performance.
-    
-    Infinite recursive imaps are more challenging.  We didn't fix representation for imaps at
+  * Compiling Heh.  So far compilation works for a finite non-recursive subset.
+    Infinite recursive case is more challenging.  We didn't fix representation for imaps at
     runtime.  Most likely we want to treat them as hash-tables, where every entry stores a contiguous
     piece of memory, representing an index subspace.
     
