@@ -18,7 +18,9 @@ open Ast
 
 
 (* Change applications of "reduce" and "filters" that were parsed as EApply
-   into EReduce and EFilter constructs. *)
+   into EReduce and EFilter constructs.
+   XXX well, actually, this is a bottom-up traversal, and we should
+       probalby add a primitive for that.  Right now it is a bit of a hack.  *)
 let rec app_to_hof () e =
     match e with
     | { expr_kind =
@@ -26,13 +28,18 @@ let rec app_to_hof () e =
         EApply ({ expr_kind =
         EApply ({ expr_kind =
         EVar ("reduce")}, e1)}, e2)}, e3) } ->
-        ((), mk_ereduce e1 e2 e3)
+        let _, e1' = app_to_hof () e1 in
+        let _, e2' = app_to_hof () e2 in
+        let _, e3' = app_to_hof () e3 in
+        ((), mk_ereduce e1' e2' e3')
 
     | { expr_kind =
         EApply ({ expr_kind =
         EApply ({ expr_kind =
         EVar ("filter")}, e1)}, e2) } ->
-        ((), mk_efilter e1 e2)
+        let _,e1' = app_to_hof () e1 in
+        let _,e2' = app_to_hof () e2 in
+        ((), mk_efilter e1' e2')
 
     | { expr_kind = EVar ("reduce"); loc=l } ->
         Parser.parse_err_loc l "reduce found with less than three arguments"
